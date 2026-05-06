@@ -1,4 +1,4 @@
-# Juvantia Foundation Smart Contracts
+# Juvantia Smart Contracts
 
 [![License: MIT][license-badge]][license]
 
