@@ -18,3 +18,7 @@ docs/
 .env
 .env.*
 !.env.example
+
+# Internal Documentation
+GEMINI.md
+DEPLOYMENTS.md

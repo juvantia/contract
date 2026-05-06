@@ -3,11 +3,11 @@ src = "src"
 out = "out"
 libs = ["lib"]
 
-# Добавляем блок RPC-эндпоинтов
+# Add RPC endpoints block
 [rpc_endpoints]
 base_sepolia = "https://sepolia.base.org"
 base_mainnet = "https://mainnet.base.org"
 
-# Настройки верификации (чтобы код автоматически подтверждался в сканере)
+# Verification settings (for automatic code verification on explorers)
 [etherscan]
 base_sepolia = { key = "$P2IKY41273378YV1UNNF4KECUDVTVVH39X" }
