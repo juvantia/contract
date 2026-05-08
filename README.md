@@ -29,4 +29,4 @@ This contract contains the core logic, rules, and behaviors for the individual a
 
 ## Verification
 
-All contracts deployed by the Juvantia Foundation are verified on block explorers (e.g., BaseScan). You can compare the source code found in this repository directly with the code running on the blockchain to ensure absolute parity.
+All contracts deployed by the Juvantia Foundation are verified on block explorers. You can compare the source code found in this repository directly with the code running on the blockchain to ensure absolute parity.

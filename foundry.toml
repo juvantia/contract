@@ -7,7 +7,9 @@ libs = ["lib"]
 [rpc_endpoints]
 base_sepolia = "https://sepolia.base.org"
 base_mainnet = "https://mainnet.base.org"
+arc_testnet = "https://rpc.testnet.arc.network"
 
 # Verification settings (for automatic code verification on explorers)
 [etherscan]
 base_sepolia = { key = "$P2IKY41273378YV1UNNF4KECUDVTVVH39X" }
+arc_testnet = { key = "proapi_ggrJZChTgCfEWruzhL91fGclfXKgzQSNxwHgcRwjx0r5acv0BslumBAbZyIrEHpHB_dsokmh", url = "https://testnet.arcscan.app/api" }
