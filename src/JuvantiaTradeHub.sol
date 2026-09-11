@@ -87,7 +87,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         require(order.isActive, "Order inactive");
         require(amount > 0 && amount <= order.amountRemaining, "Invalid amount");
 
-        // EURe base units per full share. Round up so splitting fills cannot underpay.
+        // Euro-token base units per full share. Round up so splitting fills cannot underpay.
         uint256 totalCost = Math.mulDiv(amount, order.pricePerToken, 1e18, Math.Rounding.Ceil);
         require(totalCost > 0, "Total cost too small");
 

@@ -6,11 +6,12 @@ import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol"
 
 contract DeployJuvantiaRevenueDistributor is Script {
     function run() external {
-        require(block.chainid == 10200, "Chiado only");
+        require(block.chainid == vm.envUint("BLOCKCHAIN_CHAIN_ID"), "Unexpected blockchain");
+        address euroToken = vm.envAddress("EURO_TOKEN_ADDRESS");
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
         JuvantiaRevenueDistributor distributor = new JuvantiaRevenueDistributor(
-            0x8106F0830f18d2CDa1c0AD7d929a2941F849DF54, deployer);
+            euroToken, deployer);
         vm.stopBroadcast();
         console.log("JuvantiaRevenueDistributor", address(distributor));
     }

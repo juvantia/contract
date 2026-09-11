@@ -1,7 +1,7 @@
 # Contract Manifest (`contract`)
 
 **Service**: `contract` (Onchain Smart Contracts Layer)  
-**Target Chain**: Gnosis Chiado (Chain ID: 10200)  
+**Target blockchain**: configured by `BLOCKCHAIN_CHAIN_ID` and `BLOCKCHAIN_RPC_URL`
 **Core Toolchain**: Foundry (Forge), OpenZeppelin Contracts Upgradeable (UUPS & EIP-1167 Clones).
 
 ---
@@ -9,7 +9,7 @@
 ## 🏛️ Description & System Role
 The `contract` repository contains the smart contracts governing Real-World Asset (RWA) tokenization, fractional share trading, and revenue distribution across the Juvantia ecosystem.
 
-The ZeroDev migration is in progress, not deployed. Payment currency is official EURe `0x8106F0830f18d2CDa1c0AD7d929a2941F849DF54`, with 18 decimals. Do not query or store its symbol. All money uses integer base units. Old economic state and addresses are not migration targets. See [full migration progress](../ZERODEV_MIGRATION_PROGRESS.md).
+The configurable ZeroDev migration is in progress, not deployed. The payment asset is the euro token at `EURO_TOKEN_ADDRESS`; its decimals come from the token contract. Do not query or store its symbol. All money uses integer base units. Old economic state and addresses are not migration targets. See [full migration progress](../ZERODEV_MIGRATION_PROGRESS.md).
 
 ---
 
@@ -22,7 +22,7 @@ To optimize gas efficiency when minting new RWA assets (Robulus, Domus, Apparatu
 `JuvantiaAssetFabrica` and `JuvantiaTradeHub` are deployed behind ERC-1967 Proxies inheriting from OpenZeppelin `UUPSUpgradeable` and `OwnableUpgradeable`. Upgrades are authorized via `_authorizeUpgrade`.
 
 ### 3. Clone and Proxy Initialization
-Clone/proxy instance state is initialized atomically through guarded `initialize()` functions. Implementation constructors disable initializers and may set checked immutable dependencies; they must not be mistaken for instance initialization. Plain non-proxy contracts use checked constructor configuration. Deployer remains the factory/upgrade authority on Chiado.
+Clone/proxy instance state is initialized atomically through guarded `initialize()` functions. Implementation constructors disable initializers and may set checked immutable dependencies; they must not be mistaken for instance initialization. Plain non-proxy contracts use checked constructor configuration. Deployer remains the factory/upgrade authority on the configured blockchain.
 
 ---
 
@@ -32,9 +32,9 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | :--- | :--- | :--- |
 | **`JuvantiaAssetFabrica.sol`** | UUPS Upgradeable Proxy | Asset Factory entry point. Deploys and registers new `JuvantiaAsset` tokens. |
 | **`JuvantiaAsset.sol`** | EIP-1167 Cloneable ERC-20 | Standard RWA asset token contract (18 decimal places, 100,000 total supply per asset). |
-| **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; EURe price per full share, integer ceiling for fills; unsold shares retain their seller's revenue rights. |
+| **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; unsold shares retain their seller's revenue rights. |
 | **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders and attributed marketplace custody. No backend claim signatures. |
-| **`JuvantiaAerarium.sol`** | Configured treasury | Receives EURe and permits owner-authorized spending. |
+| **`JuvantiaAerarium.sol`** | Configured treasury | Receives euro and permits owner-authorized spending. |
 | **`JuvantiaLeasingHub.sol`** | Configured settlement | Atomic tax/net revenue routing with lease replay protection. |
 | **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Segregated operating/dividend funds, treasury-share exclusion and transfer/escrow-aware dividends. Not a complete Consortium contract. |
@@ -45,13 +45,13 @@ Consortium governance/Tribunal gate, Syndicate governance/points and both factor
 
 A factory may register a fixed-supply `JuvantiaAsset` with a one-time `IAssetCheckpointObserver`. The RevenueDistributor validates the observer's share token and distributor, then calls it before every economic-ownership change, including escrow deposits/withdrawals. The observer cannot be rebound after asset registration. Ordinary device assets retain the existing observer-free registration path.
 
-The Consortium dividend pool is reserved explicitly. `operatingBalance()` derives EURe custody minus that reserve, so direct ERC-20 payments and permissionless device `claimFor` receipts become operating funds immediately without an indexer or keeper. Allocations and spending are internal until governed Consortium wrappers are implemented. Treasury shares remain non-dividend-bearing while attributed to the company in TradeHub escrow; sold shares earn only subsequent dividends.
+The Consortium dividend pool is reserved explicitly. `operatingBalance()` derives euro-token custody minus that reserve, so direct ERC-20 payments and permissionless device `claimFor` receipts become operating funds immediately without an indexer or keeper. Allocations and spending are internal until governed Consortium wrappers are implemented. Treasury shares remain non-dividend-bearing while attributed to the company in TradeHub escrow; sold shares earn only subsequent dividends.
 
 ---
 
 ## 📍 Deployment Status
 
-No new Chiado deployment has been performed. Legacy entries in `DEPLOYMENTS.md` and broadcast directories are not current Chiado registry entries. Full deployment requires all community contracts/factories, role wiring, ABI/address/deployment-block registry export and receipt-verified smoke tests. Never invent addresses or mark successful compilation as deployment.
+No new configurable deployment has been performed. Full deployment requires all community contracts/factories, role wiring, ABI/address/deployment-block registry export and receipt-verified smoke tests. Never invent addresses or mark successful compilation as deployment.
 
 ---
 
@@ -60,7 +60,7 @@ No new Chiado deployment has been performed. Legacy entries in `DEPLOYMENTS.md` 
 - **Compile**: `forge build`
 - **Run Unit Tests**: `forge test`
 - **Configuration**: Solidity 0.8.30, Cancun, optimizer 200, 512 fuzz runs.
-- **Deployment gate**: `DeployJuvantia.s.sol` is Chiado-only but still lacks full community deployment and canonical registry export. Do not broadcast a partial migration as the completed stack.
+- **Deployment gate**: `DeployJuvantia.s.sol` requires explicit blockchain and euro-token environment variables, but still lacks full community deployment and canonical registry export. Do not broadcast a partial migration as the completed stack.
 - **Confirmation**: Backend verifies the specific successful UserOperation and transaction receipt; no consensus-finality wait, webhook or permanent indexer.
 
 ---

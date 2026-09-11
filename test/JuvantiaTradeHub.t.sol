@@ -11,7 +11,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function setUp() public override {
         super.setUp();
         trade = JuvantiaTradeHub(address(new ERC1967Proxy(address(new JuvantiaTradeHub()),
-            abi.encodeCall(JuvantiaTradeHub.initialize, (address(eure), address(this), address(revenue))))));
+            abi.encodeCall(JuvantiaTradeHub.initialize, (address(euroToken), address(this), address(revenue))))));
         revenue.setEscrow(address(trade), true);
     }
 
@@ -22,10 +22,10 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         vm.stopPrank();
     }
 
-    function testFillAndWithdrawExactEURe() public {
+    function testFillAndWithdrawExactEuro() public {
         uint256 id = createOrder(100 ether, 5 ether);
         vm.startPrank(bob);
-        eure.approve(address(trade), 200 ether);
+        euroToken.approve(address(trade), 200 ether);
         trade.fillOrder(id, 40 ether);
         vm.stopPrank();
         (,, uint256 remaining,, bool active) = trade.orders(id);
@@ -35,7 +35,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         assertEq(trade.pendingWithdrawals(alice), 200 ether);
         vm.prank(alice);
         trade.withdraw();
-        assertEq(eure.balanceOf(alice), 1_200 ether);
+        assertEq(euroToken.balanceOf(alice), 1_200 ether);
         assertEq(trade.pendingWithdrawals(alice), 0);
     }
 
@@ -45,7 +45,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         assertEq(revenue.claimable(address(asset), alice), 100 ether);
         assertEq(revenue.claimable(address(asset), address(trade)), 0);
         vm.startPrank(bob);
-        eure.approve(address(trade), 100_000);
+        euroToken.approve(address(trade), 100_000);
         trade.fillOrder(id, 100_000 ether);
         vm.stopPrank();
         assertEq(revenue.claimFor(address(asset), bob), 0);
@@ -88,7 +88,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function testTinyFillRoundsUpAndNeverTransfersForFree() public {
         uint256 id = createOrder(1 ether, 1);
         vm.startPrank(bob);
-        eure.approve(address(trade), 1);
+        euroToken.approve(address(trade), 1);
         trade.fillOrder(id, 1);
         vm.stopPrank();
         assertEq(trade.pendingWithdrawals(alice), 1);

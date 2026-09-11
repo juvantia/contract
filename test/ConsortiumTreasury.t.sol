@@ -56,25 +56,25 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         super.setUp();
         shares = JuvantiaAsset(Clones.clone(address(new JuvantiaAsset())));
         company = ConsortiumTreasuryHarness(Clones.clone(address(new ConsortiumTreasuryHarness())));
-        company.initialize(address(eure), address(shares), address(revenue), address(this));
+        company.initialize(address(euroToken), address(shares), address(revenue), address(this));
         shares.initialize("Consortium shares", "APU", address(company), address(this), address(revenue));
         revenue.setRegistrar(address(this), true);
         revenue.registerAsset(address(shares), address(company));
         company.transferTreasuryShares(alice, 60_000 ether);
         company.transferTreasuryShares(bob, 20_000 ether);
-        eure.approve(address(company), type(uint256).max);
+        euroToken.approve(address(company), type(uint256).max);
         company.depositOperating(1_000 ether, keccak256("revenue"));
         hub = JuvantiaTradeHub(
             address(
                 new ERC1967Proxy(
                     address(new JuvantiaTradeHub()),
-                    abi.encodeCall(JuvantiaTradeHub.initialize, (address(eure), address(this), address(revenue)))
+                    abi.encodeCall(JuvantiaTradeHub.initialize, (address(euroToken), address(this), address(revenue)))
                 )
             )
         );
         revenue.setEscrow(address(hub), true);
         vm.startPrank(bob);
-        eure.approve(address(hub), type(uint256).max);
+        euroToken.approve(address(hub), type(uint256).max);
         vm.stopPrank();
     }
 
@@ -133,11 +133,11 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         assertEq(company.operatingBalance(), 0);
         assertEq(company.claimFor(alice), 600 ether);
         assertEq(company.claimFor(bob), 200 ether);
-        assertEq(eure.balanceOf(address(company)), 0);
+        assertEq(euroToken.balanceOf(address(company)), 0);
     }
 
     function testDirectTransfersAndDeviceClaimForNeedNoSyncOrIndexer() public {
-        eure.transfer(address(company), 11 ether);
+        euroToken.transfer(address(company), 11 ether);
         assertEq(company.operatingBalance(), 1_011 ether);
         vm.prank(alice);
         asset.transfer(address(company), 100_000 ether);
@@ -226,17 +226,17 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
 
     function testCloneCannotBeInitializedAgain() public {
         vm.expectRevert();
-        company.initialize(address(eure), address(shares), address(revenue), bob);
+        company.initialize(address(euroToken), address(shares), address(revenue), bob);
         ConsortiumTreasuryHarness implementation = new ConsortiumTreasuryHarness();
         vm.expectRevert();
-        implementation.initialize(address(eure), address(shares), address(revenue), bob);
+        implementation.initialize(address(euroToken), address(shares), address(revenue), bob);
     }
 
     function testUnboundLedgerCannotAllocateDividends() public {
         ConsortiumTreasuryHarness unbound =
             ConsortiumTreasuryHarness(Clones.clone(address(new ConsortiumTreasuryHarness())));
-        unbound.initialize(address(eure), address(asset), address(revenue), address(this));
-        eure.transfer(address(unbound), 1 ether);
+        unbound.initialize(address(euroToken), address(asset), address(revenue), address(this));
+        euroToken.transfer(address(unbound), 1 ether);
         vm.expectRevert("Missing treasury checkpoint");
         unbound.allocate(1 ether);
     }
@@ -264,6 +264,6 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         assertLe(2 * amount - paid, 3);
         assertEq(company.distributablePool(), 2 * amount - paid);
         assertEq(company.operatingBalance(), 1_000 ether - 2 * amount);
-        assertEq(eure.balanceOf(address(company)), company.operatingBalance() + company.distributablePool());
+        assertEq(euroToken.balanceOf(address(company)), company.operatingBalance() + company.distributablePool());
     }
 }

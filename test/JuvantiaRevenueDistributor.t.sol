@@ -64,12 +64,12 @@ contract JuvantiaRevenueDistributorTest is ProtocolFixture {
 
     function testUnknownAssetsAndForgedHooksRejected() public {
         vm.expectRevert("Unknown asset");
-        revenue.distributeRevenue(address(eure), 1 ether);
+        revenue.distributeRevenue(address(euroToken), 1 ether);
         vm.expectRevert("Unknown asset");
         revenue.checkpointTransfer(alice, bob);
         vm.prank(bob);
         vm.expectRevert("Not registrar");
-        revenue.registerAsset(address(eure));
+        revenue.registerAsset(address(euroToken));
     }
 
     function testClaimBatchPaysCallerOnlyOnce() public {

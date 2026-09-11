@@ -48,8 +48,8 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
         revenueDistributor = JuvantiaRevenueDistributor(distributor);
     }
 
-    /// @notice Every incoming EURe unit belongs to operations unless expressly allocated.
-    /// @dev EURe transfers have no receiver hook. Derivation makes even unsolicited direct
+    /// @notice Every incoming euro-token unit belongs to operations unless expressly allocated.
+    /// @dev ERC-20 transfers have no receiver hook. Derivation makes even unsolicited direct
     /// payments/claimFor receipts immediately available, without a keeper, sync call or indexer.
     function operatingBalance() public view returns (uint256) {
         return paymentToken.balanceOf(address(this)) - distributablePool;

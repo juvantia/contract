@@ -8,8 +8,5 @@ optimizer = true
 optimizer_runs = 200
 fs_permissions = [{ access = "read-write", path = "./deployments" }]
 
-[rpc_endpoints]
-chiado = "https://rpc.chiadochain.net"
-
 [fuzz]
 runs = 512

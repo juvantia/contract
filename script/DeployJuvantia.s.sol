@@ -12,15 +12,14 @@ import {JuvantiaLeasingHub} from "../src/JuvantiaLeasingHub.sol";
 import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
 
 contract DeployJuvantia is Script {
-    address constant EURE = 0x8106F0830f18d2CDa1c0AD7d929a2941F849DF54;
-
     function run() external {
-        require(block.chainid == 10200, "Chiado only");
+        require(block.chainid == vm.envUint("BLOCKCHAIN_CHAIN_ID"), "Unexpected blockchain");
+        address euroToken = vm.envAddress("EURO_TOKEN_ADDRESS");
         uint256 taxBps = vm.envUint("LEASE_TAX_BPS");
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
 
-        JuvantiaRevenueDistributor revenue = new JuvantiaRevenueDistributor(EURE, deployer);
+        JuvantiaRevenueDistributor revenue = new JuvantiaRevenueDistributor(euroToken, deployer);
         JuvantiaAsset assetImpl = new JuvantiaAsset();
         JuvantiaAssetFabrica factoryImpl = new JuvantiaAssetFabrica(address(assetImpl));
         JuvantiaAssetFabrica fabrica = JuvantiaAssetFabrica(address(new ERC1967Proxy(
@@ -29,11 +28,11 @@ contract DeployJuvantia is Script {
         revenue.setRegistrar(address(fabrica), true);
         JuvantiaTradeHub tradeImpl = new JuvantiaTradeHub();
         address trade = address(new ERC1967Proxy(address(tradeImpl),
-            abi.encodeCall(JuvantiaTradeHub.initialize, (EURE, deployer, address(revenue)))));
+            abi.encodeCall(JuvantiaTradeHub.initialize, (euroToken, deployer, address(revenue)))));
         revenue.setEscrow(trade, true);
-        JuvantiaAerarium aerarium = new JuvantiaAerarium(EURE, deployer);
-        JuvantiaLeasingHub leasing = new JuvantiaLeasingHub(EURE, address(aerarium), address(revenue), deployer, taxBps);
-        JuvantiaServicePayments services = new JuvantiaServicePayments(EURE);
+        JuvantiaAerarium aerarium = new JuvantiaAerarium(euroToken, deployer);
+        JuvantiaLeasingHub leasing = new JuvantiaLeasingHub(euroToken, address(aerarium), address(revenue), deployer, taxBps);
+        JuvantiaServicePayments services = new JuvantiaServicePayments(euroToken);
         vm.stopBroadcast();
 
         console.log("Deployer", deployer);
