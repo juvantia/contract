@@ -1,30 +1,50 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import "forge-std/Script.sol";
-import "../src/JuvantiaAsset.sol";
-import "../src/JuvantiaAssetFabrica.sol";
-import "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {Script, console} from "forge-std/Script.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {JuvantiaAsset} from "../src/JuvantiaAsset.sol";
+import {JuvantiaAssetFabrica} from "../src/JuvantiaAssetFabrica.sol";
+import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol";
+import {JuvantiaTradeHub} from "../src/JuvantiaTradeHub.sol";
+import {JuvantiaAerarium} from "../src/JuvantiaAerarium.sol";
+import {JuvantiaLeasingHub} from "../src/JuvantiaLeasingHub.sol";
+import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
 
 contract DeployJuvantia is Script {
+    address constant EURE = 0x8106F0830f18d2CDa1c0AD7d929a2941F849DF54;
+
     function run() external {
+        require(block.chainid == 10200, "Chiado only");
+        uint256 taxBps = vm.envUint("LEASE_TAX_BPS");
         vm.startBroadcast();
+        (, address deployer,) = vm.readCallers();
 
-        // 1. Deploy implementation logic for the asset
+        JuvantiaRevenueDistributor revenue = new JuvantiaRevenueDistributor(EURE, deployer);
         JuvantiaAsset assetImpl = new JuvantiaAsset();
-        
-        // 2. Deploy implementation logic for the factory
         JuvantiaAssetFabrica factoryImpl = new JuvantiaAssetFabrica(address(assetImpl));
-
-        // 3. Deploy ERC1967 Proxy for the fabrica (makes factory upgradeable)
-        ERC1967Proxy proxy = new ERC1967Proxy(
-            address(factoryImpl),
-            abi.encodeWithSelector(JuvantiaAssetFabrica.initialize.selector)
-        );
-
-        console.log("JuvantiaAsset Logic Address:", address(assetImpl));
-        console.log("Factory Proxy Address (USE THIS IN BACKEND):", address(proxy));
-
+        JuvantiaAssetFabrica fabrica = JuvantiaAssetFabrica(address(new ERC1967Proxy(
+            address(factoryImpl), abi.encodeCall(JuvantiaAssetFabrica.initialize, (deployer, address(revenue)))
+        )));
+        revenue.setRegistrar(address(fabrica), true);
+        JuvantiaTradeHub tradeImpl = new JuvantiaTradeHub();
+        address trade = address(new ERC1967Proxy(address(tradeImpl),
+            abi.encodeCall(JuvantiaTradeHub.initialize, (EURE, deployer, address(revenue)))));
+        revenue.setEscrow(trade, true);
+        JuvantiaAerarium aerarium = new JuvantiaAerarium(EURE, deployer);
+        JuvantiaLeasingHub leasing = new JuvantiaLeasingHub(EURE, address(aerarium), address(revenue), deployer, taxBps);
+        JuvantiaServicePayments services = new JuvantiaServicePayments(EURE);
         vm.stopBroadcast();
+
+        console.log("Deployer", deployer);
+        console.log("JuvantiaAsset", address(assetImpl));
+        console.log("JuvantiaAssetFabrica implementation", address(factoryImpl));
+        console.log("JuvantiaAssetFabrica", address(fabrica));
+        console.log("JuvantiaTradeHub implementation", address(tradeImpl));
+        console.log("JuvantiaTradeHub", trade);
+        console.log("JuvantiaRevenueDistributor", address(revenue));
+        console.log("JuvantiaAerarium", address(aerarium));
+        console.log("JuvantiaLeasingHub", address(leasing));
+        console.log("JuvantiaServicePayments", address(services));
     }
 }

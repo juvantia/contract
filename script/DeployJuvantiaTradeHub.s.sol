@@ -1,32 +1,21 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
 import {JuvantiaTradeHub} from "../src/JuvantiaTradeHub.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 contract DeployJuvantiaTradeHub is Script {
-    function run() public {
-        address eurcAddress = vm.envAddress("EURC_ADDRESS");
-
+    function run() external {
+        require(block.chainid == 10200, "Chiado only");
+        address distributor = vm.envAddress("REVENUE_DISTRIBUTOR_ADDRESS");
         vm.startBroadcast();
-        address deployer = msg.sender;
-
-        // 1. Deploy Implementation
+        (, address deployer,) = vm.readCallers();
         JuvantiaTradeHub implementation = new JuvantiaTradeHub();
-        console.log("JuvantiaTradeHub Implementation deployed at:", address(implementation));
-
-        // 2. Prepare Initialization Data
-        bytes memory data = abi.encodeWithSelector(
-            JuvantiaTradeHub.initialize.selector,
-            eurcAddress,
-            deployer
-        );
-
-        // 3. Deploy Proxy
-        ERC1967Proxy proxy = new ERC1967Proxy(address(implementation), data);
-        console.log("JuvantiaTradeHub Proxy (Active Contract) deployed at:", address(proxy));
-
+        address proxy = address(new ERC1967Proxy(address(implementation),
+            abi.encodeCall(JuvantiaTradeHub.initialize, (0x8106F0830f18d2CDa1c0AD7d929a2941F849DF54, deployer, distributor))));
         vm.stopBroadcast();
+        console.log("JuvantiaTradeHub implementation", address(implementation));
+        console.log("JuvantiaTradeHub", proxy);
     }
 }

@@ -7,11 +7,14 @@ import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {JuvantiaRevenueDistributor} from "./JuvantiaRevenueDistributor.sol";
 
 contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     IERC20 public currencyToken;
+    JuvantiaRevenueDistributor public revenueDistributor;
 
     struct Order {
         address seller;
@@ -36,11 +39,13 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         _disableInitializers();
     }
 
-    function initialize(address _currencyToken, address initialOwner) initializer public {
+    function initialize(address _currencyToken, address initialOwner, address distributor) initializer public {
         __Ownable_init(initialOwner);
 
         require(_currencyToken != address(0), "Invalid currency token");
         currencyToken = IERC20(_currencyToken);
+        require(address(JuvantiaRevenueDistributor(distributor).revenueToken()) == _currencyToken, "Token mismatch");
+        revenueDistributor = JuvantiaRevenueDistributor(distributor);
     }
 
     function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
@@ -55,9 +60,11 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         require(amount > 0, "Amount must be > 0");
         require(pricePerToken > 0, "Price must be > 0");
         require(assetToken != address(0), "Invalid asset token");
+        require(revenueDistributor.registeredAssets(assetToken), "Unknown asset");
 
         // Transfer asset tokens from seller to JuvantiaTradeHub (requires prior approval)
         IERC20(assetToken).safeTransferFrom(msg.sender, address(this), amount);
+        revenueDistributor.escrowDeposit(assetToken, msg.sender, amount);
 
         uint256 orderId = nextOrderId++;
         orders[orderId] = Order({
@@ -80,10 +87,8 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         require(order.isActive, "Order inactive");
         require(amount > 0 && amount <= order.amountRemaining, "Invalid amount");
 
-        // Calculate total cost relative to 10**18 asset tokens
-        // Example: If asset token has 18 decimals, and currency token has 6 decimals:
-        // totalCost = (amount * pricePerToken) / 10**18
-        uint256 totalCost = (amount * order.pricePerToken) / 10**18;
+        // EURe base units per full share. Round up so splitting fills cannot underpay.
+        uint256 totalCost = Math.mulDiv(amount, order.pricePerToken, 1e18, Math.Rounding.Ceil);
         require(totalCost > 0, "Total cost too small");
 
         order.amountRemaining -= amount;
@@ -98,6 +103,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         pendingWithdrawals[order.seller] += totalCost;
         
         // Transfer asset tokens to buyer
+        revenueDistributor.escrowWithdraw(order.assetToken, order.seller, amount);
         IERC20(order.assetToken).safeTransfer(msg.sender, amount);
 
         emit OrderFilled(orderId, msg.sender, amount, totalCost);
@@ -116,6 +122,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         order.isActive = false;
 
         // Return remaining asset tokens to the seller
+        revenueDistributor.escrowWithdraw(order.assetToken, order.seller, amountToReturn);
         IERC20(order.assetToken).safeTransfer(msg.sender, amountToReturn);
 
         emit OrderCancelled(orderId);

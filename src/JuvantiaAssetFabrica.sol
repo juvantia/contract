@@ -1,40 +1,44 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.20;
+pragma solidity ^0.8.24;
 
-import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
-import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
-import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import "@openzeppelin/contracts/proxy/Clones.sol";
-import "./JuvantiaAsset.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
+import {JuvantiaAsset} from "./JuvantiaAsset.sol";
+import {JuvantiaRevenueDistributor} from "./JuvantiaRevenueDistributor.sol";
 
-contract JuvantiaAssetFabrica is Initializable, UUPSUpgradeable, OwnableUpgradeable {
-    
+contract JuvantiaAssetFabrica is UUPSUpgradeable, OwnableUpgradeable {
     address public immutable assetImplementation;
+    JuvantiaRevenueDistributor public revenueDistributor;
+    mapping(bytes32 => address) public assetById;
+    address[] public assets;
 
-    event AssetCreated(address indexed tokenAddress, address indexed initialOwner, string name, string symbol);
+    event AssetCreated(bytes32 indexed assetId, address indexed tokenAddress, address indexed initialOwner, string name);
 
-    /// @custom:oz-upgrades-unsafe-allow constructor
-    constructor(address _assetImplementation) {
+    constructor(address implementation) {
+        require(implementation.code.length > 0, "Invalid implementation");
         _disableInitializers();
-        assetImplementation = _assetImplementation;
+        assetImplementation = implementation;
     }
 
-    function initialize() initializer public {
-        __Ownable_init(msg.sender);
+    function initialize(address admin, address distributor) external initializer {
+        require(distributor.code.length > 0, "Invalid distributor");
+        __Ownable_init(admin);
+        revenueDistributor = JuvantiaRevenueDistributor(distributor);
     }
 
-    function createAsset(string calldata name, string calldata symbol, address initialOwner) 
-        external onlyOwner returns (address) 
+    function createAsset(bytes32 assetId, string calldata name, address initialOwner)
+        external onlyOwner returns (address clone)
     {
-        // Deploying minimal proxy (EIP-1167)
-        address clone = Clones.clone(assetImplementation);
-        
-        // Initializing the clone and transferring ownership to the backend
-        JuvantiaAsset(clone).initialize(name, symbol, initialOwner, owner());
-        
-        emit AssetCreated(clone, initialOwner, name, symbol);
-        return clone;
+        require(assetId != bytes32(0) && assetById[assetId] == address(0), "Invalid or duplicate asset ID");
+        clone = Clones.cloneDeterministic(assetImplementation, assetId);
+        JuvantiaAsset(clone).initialize(name, "APU", initialOwner, owner(), address(revenueDistributor));
+        revenueDistributor.registerAsset(clone);
+        assetById[assetId] = clone;
+        assets.push(clone);
+        emit AssetCreated(assetId, clone, initialOwner, name);
     }
 
-    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    function assetCount() external view returns (uint256) { return assets.length; }
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }
