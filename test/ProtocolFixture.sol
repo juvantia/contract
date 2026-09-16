@@ -8,7 +8,6 @@ import {JuvantiaAsset} from "../src/JuvantiaAsset.sol";
 import {JuvantiaAssetFabrica} from "../src/JuvantiaAssetFabrica.sol";
 import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol";
 import {JuvantiaAerarium} from "../src/JuvantiaAerarium.sol";
-import {JuvantiaLeasingHub} from "../src/JuvantiaLeasingHub.sol";
 import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
 
 contract TestEuroToken is ERC20 {
@@ -22,7 +21,6 @@ abstract contract ProtocolFixture is Test {
     JuvantiaAssetFabrica internal fabrica;
     JuvantiaRevenueDistributor internal revenue;
     JuvantiaAerarium internal aerarium;
-    JuvantiaLeasingHub internal leasing;
     JuvantiaServicePayments internal services;
     address internal alice = address(0xA11CE);
     address internal bob = address(0xB0B);
@@ -30,15 +28,14 @@ abstract contract ProtocolFixture is Test {
 
     function setUp() public virtual {
         euroToken = new TestEuroToken();
-        revenue = new JuvantiaRevenueDistributor(address(euroToken), address(this));
+        aerarium = new JuvantiaAerarium(address(euroToken), address(this));
+        revenue = new JuvantiaRevenueDistributor(address(euroToken), address(this), address(aerarium));
         JuvantiaAsset implementation = new JuvantiaAsset();
         JuvantiaAssetFabrica factoryImpl = new JuvantiaAssetFabrica(address(implementation));
         fabrica = JuvantiaAssetFabrica(address(new ERC1967Proxy(address(factoryImpl),
             abi.encodeCall(JuvantiaAssetFabrica.initialize, (address(this), address(revenue))))));
         revenue.setRegistrar(address(fabrica), true);
         asset = JuvantiaAsset(fabrica.createAsset(keccak256("asset-1"), "Robulus", alice));
-        aerarium = new JuvantiaAerarium(address(euroToken), address(this));
-        leasing = new JuvantiaLeasingHub(address(euroToken), address(aerarium), address(revenue), address(this));
         services = new JuvantiaServicePayments(address(euroToken));
         euroToken.mint(address(this), 1_000_000 ether);
         euroToken.approve(address(revenue), type(uint256).max);

@@ -3,14 +3,16 @@ pragma solidity ^0.8.24;
 
 import {ProtocolFixture} from "./ProtocolFixture.sol";
 import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
-import {JuvantiaAerarium} from "../src/JuvantiaAerarium.sol";
+import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol";
 
 contract JuvantiaPaymentsTest is ProtocolFixture {
     bytes32 internal constant LEASING_CATEGORY = keccak256("LEASING");
+    bytes32 internal constant CLOUD_MENU_CATEGORY = keccak256("CLOUD_MENU");
 
     event TaxRateSet(bytes32 indexed categoryId, uint256 newRateBps);
     event TaxReceived(address indexed source, uint256 amount, bytes32 indexed categoryId);
     event TreasurySpent(address indexed recipient, uint256 amount, string purpose);
+    event PaymentProcessed(bytes32 indexed paymentId, address indexed payer, address indexed assetToken, bytes32 categoryId, uint256 amount, uint256 tax, uint256 net);
 
     function testServiceReceiptHasAllBusinessIdentifiers() public {
         bytes32 requestId = keccak256("service-request");
@@ -48,47 +50,60 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         assertFalse(services.paid(alice, bytes32(uint256(1))));
     }
 
-    function testLeaseTaxAndRevenueAtomic() public {
+    function testUniversalPaymentAtomicWithTaxAndRevenue() public {
         // Set leasing tax rate in Aerarium to 10% (1,000 bps)
         vm.expectEmit(true, false, false, true, address(aerarium));
         emit TaxRateSet(LEASING_CATEGORY, 1_000);
         aerarium.setTaxRate(LEASING_CATEGORY, 1_000);
         assertEq(aerarium.getTaxRateBps(LEASING_CATEGORY), 1_000);
 
+        bytes32 paymentId = keccak256("lease-slot-1");
         vm.startPrank(bob);
-        euroToken.approve(address(leasing), 100 ether);
+        euroToken.approve(address(revenue), 100 ether);
+
         vm.expectEmit(true, true, false, true, address(aerarium));
-        emit TaxReceived(address(leasing), 10 ether, LEASING_CATEGORY);
-        leasing.processLeasePayment(address(asset), 100 ether, keccak256("lease-1"));
+        emit TaxReceived(address(revenue), 10 ether, LEASING_CATEGORY);
+
+        vm.expectEmit(true, true, true, true, address(revenue));
+        emit PaymentProcessed(paymentId, bob, address(asset), LEASING_CATEGORY, 100 ether, 10 ether, 90 ether);
+
+        revenue.processPayment(address(asset), 100 ether, LEASING_CATEGORY, paymentId);
         vm.stopPrank();
 
         assertEq(euroToken.balanceOf(address(aerarium)), 10 ether);
         assertEq(aerarium.totalCollected(), 10 ether);
         assertEq(revenue.claimable(address(asset), alice), 90 ether);
-        assertEq(euroToken.balanceOf(address(leasing)), 0);
-        assertEq(euroToken.allowance(address(leasing), address(aerarium)), 0);
-        assertEq(euroToken.allowance(address(leasing), address(revenue)), 0);
+        assertTrue(revenue.paid(bob, paymentId));
+
+        // Replay of the same paymentId is rejected
+        vm.startPrank(bob);
+        euroToken.approve(address(revenue), 100 ether);
+        vm.expectRevert("Already paid");
+        revenue.processPayment(address(asset), 100 ether, LEASING_CATEGORY, paymentId);
+        vm.stopPrank();
     }
 
-    function testLeaseWithoutTaxWhenRateZero() public {
+    function testPaymentWithoutTaxWhenRateZero() public {
         // Default tax rate is 0
-        assertEq(aerarium.getTaxRateBps(LEASING_CATEGORY), 0);
+        assertEq(aerarium.getTaxRateBps(CLOUD_MENU_CATEGORY), 0);
 
+        bytes32 paymentId = keccak256("menu-item-1");
         vm.startPrank(bob);
-        euroToken.approve(address(leasing), 50 ether);
-        leasing.processLeasePayment(address(asset), 50 ether, keccak256("lease-zero-tax"));
+        euroToken.approve(address(revenue), 50 ether);
+        revenue.processPayment(address(asset), 50 ether, CLOUD_MENU_CATEGORY, paymentId);
         vm.stopPrank();
 
         assertEq(euroToken.balanceOf(address(aerarium)), 0);
         assertEq(aerarium.totalCollected(), 0);
         assertEq(revenue.claimable(address(asset), alice), 50 ether);
+        assertTrue(revenue.paid(bob, paymentId));
     }
 
-    function testUnknownLeaseAssetDoesNotTakeMoney() public {
+    function testUnknownAssetDoesNotTakeMoney() public {
         vm.startPrank(bob);
-        euroToken.approve(address(leasing), 100 ether);
+        euroToken.approve(address(revenue), 100 ether);
         vm.expectRevert("Unknown asset");
-        leasing.processLeasePayment(address(euroToken), 100 ether, keccak256("lease-2"));
+        revenue.processPayment(address(euroToken), 100 ether, LEASING_CATEGORY, keccak256("invalid-asset-payment"));
         vm.stopPrank();
         assertEq(euroToken.balanceOf(bob), 1_000 ether);
     }
@@ -102,6 +117,8 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         aerarium.setTaxRate(category, 500);
         vm.expectRevert();
         aerarium.spend(bob, 1 ether, "unauthorized");
+        vm.expectRevert();
+        revenue.setAerarium(bob);
         vm.stopPrank();
 
         // Rate over 10_000 bps (100%) must revert
@@ -143,5 +160,16 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
     function testReceiveTaxZeroAmountReverts() public {
         vm.expectRevert("Zero amount");
         aerarium.receiveTax(0, LEASING_CATEGORY);
+    }
+
+    function testPaymentValidationZeroAmountOrZeroIdReverts() public {
+        vm.startPrank(bob);
+        euroToken.approve(address(revenue), 10 ether);
+        vm.expectRevert("Invalid payment");
+        revenue.processPayment(address(asset), 0, LEASING_CATEGORY, keccak256("id-1"));
+
+        vm.expectRevert("Invalid payment");
+        revenue.processPayment(address(asset), 10 ether, LEASING_CATEGORY, bytes32(0));
+        vm.stopPrank();
     }
 }

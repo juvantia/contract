@@ -7,16 +7,20 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IAssetCheckpointObserver} from "./interfaces/IAssetCheckpointObserver.sol";
+import {JuvantiaAerarium} from "./JuvantiaAerarium.sol";
 
 interface IRevenueAsset is IERC20 {
     function revenueDistributor() external view returns (address);
 }
 
-/// @notice On-chain accrual for registered fixed-supply assets; no backend claim signatures.
+/// @notice On-chain accrual and payment settlement for registered fixed-supply assets; no backend claim signatures.
 contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
     uint256 public constant PRECISION = 1e36;
     IERC20 public immutable revenueToken;
+    JuvantiaAerarium public aerarium;
+
     mapping(address => bool) public registrars;
     mapping(address => bool) public registeredAssets;
     mapping(address => uint256) public cumulativeIndex;
@@ -31,6 +35,8 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     mapping(address => mapping(address => mapping(address => uint256))) public escrowPositions;
     mapping(address => address) public checkpointObservers;
 
+    mapping(address => mapping(bytes32 => bool)) public paid;
+
     event RegistrarSet(address indexed registrar, bool allowed);
     event AssetRegistered(address indexed asset);
     event CheckpointObserverRegistered(address indexed asset, address indexed observer);
@@ -38,10 +44,24 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     event EscrowPositionChanged(address indexed asset, address indexed escrow, address indexed holder, uint256 amount, bool deposited);
     event RevenueDistributed(address indexed assetToken, address indexed source, uint256 amount, uint256 cumulativeIndex);
     event RevenueClaimed(address indexed assetToken, address indexed account, uint256 amount);
+    event AerariumSet(address indexed aerarium);
+    event PaymentProcessed(bytes32 indexed paymentId, address indexed payer, address indexed assetToken, bytes32 categoryId, uint256 amount, uint256 tax, uint256 net);
 
-    constructor(address token, address admin) Ownable(admin) {
+    constructor(address token, address admin, address treasury) Ownable(admin) {
         require(token.code.length > 0, "Invalid token");
         revenueToken = IERC20(token);
+        if (treasury != address(0)) {
+            require(address(JuvantiaAerarium(treasury).revenueToken()) == token, "Treasury token mismatch");
+            aerarium = JuvantiaAerarium(treasury);
+        }
+    }
+
+    function setAerarium(address treasury) external onlyOwner {
+        if (treasury != address(0)) {
+            require(address(JuvantiaAerarium(treasury).revenueToken()) == address(revenueToken), "Treasury token mismatch");
+        }
+        aerarium = JuvantiaAerarium(treasury);
+        emit AerariumSet(treasury);
     }
 
     function setRegistrar(address registrar, bool allowed) external onlyOwner {
@@ -108,17 +128,57 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         emit EscrowPositionChanged(asset, msg.sender, holder, amount, false);
     }
 
+    function _distribute(address asset, uint256 amount, address source) internal {
+        uint256 increment = Math.mulDiv(amount, PRECISION, IERC20(asset).totalSupply());
+        require(increment > 0, "Amount too small");
+        cumulativeIndex[asset] += increment;
+        totalDistributed[asset] += amount;
+        emit RevenueDistributed(asset, source, amount, cumulativeIndex[asset]);
+    }
+
+    /// @notice Direct zero-tax distribution of external revenue to asset shareholders.
     function distributeRevenue(address asset, uint256 amount) external nonReentrant {
         require(registeredAssets[asset], "Unknown asset");
         require(amount > 0, "Zero amount");
         uint256 beforeBalance = revenueToken.balanceOf(address(this));
         revenueToken.safeTransferFrom(msg.sender, address(this), amount);
         require(revenueToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
-        uint256 increment = Math.mulDiv(amount, PRECISION, IERC20(asset).totalSupply());
-        require(increment > 0, "Amount too small");
-        cumulativeIndex[asset] += increment;
-        totalDistributed[asset] += amount;
-        emit RevenueDistributed(asset, msg.sender, amount, cumulativeIndex[asset]);
+        _distribute(asset, amount, msg.sender);
+    }
+
+    /// @notice Universal payment processing: collects gross amount, deducts city tax to Aerarium, distributes net to shareholders, and emits receipt.
+    function processPayment(
+        address asset,
+        uint256 amount,
+        bytes32 categoryId,
+        bytes32 paymentId
+    ) external nonReentrant {
+        require(registeredAssets[asset], "Unknown asset");
+        require(paymentId != bytes32(0) && amount > 0, "Invalid payment");
+        require(!paid[msg.sender][paymentId], "Already paid");
+        paid[msg.sender][paymentId] = true;
+
+        uint256 beforeBalance = revenueToken.balanceOf(address(this));
+        revenueToken.safeTransferFrom(msg.sender, address(this), amount);
+        require(revenueToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
+
+        uint256 tax = 0;
+        if (address(aerarium) != address(0) && categoryId != bytes32(0)) {
+            uint256 taxRate = aerarium.getTaxRateBps(categoryId);
+            tax = Math.mulDiv(amount, taxRate, 10_000);
+        }
+        uint256 net = amount - tax;
+
+        if (tax > 0) {
+            revenueToken.forceApprove(address(aerarium), tax);
+            aerarium.receiveTax(tax, categoryId);
+        }
+
+        if (net > 0) {
+            _distribute(asset, net, msg.sender);
+        }
+
+        emit PaymentProcessed(paymentId, msg.sender, asset, categoryId, amount, tax, net);
     }
 
     /// @dev Called by the registered share token BEFORE balances change. Never sends funds.
