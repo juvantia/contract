@@ -38,7 +38,7 @@ abstract contract ProtocolFixture is Test {
         revenue.setRegistrar(address(fabrica), true);
         asset = JuvantiaAsset(fabrica.createAsset(keccak256("asset-1"), "Robulus", alice));
         aerarium = new JuvantiaAerarium(address(euroToken), address(this));
-        leasing = new JuvantiaLeasingHub(address(euroToken), address(aerarium), address(revenue), address(this), 1_000);
+        leasing = new JuvantiaLeasingHub(address(euroToken), address(aerarium), address(revenue), address(this));
         services = new JuvantiaServicePayments(address(euroToken));
         euroToken.mint(address(this), 1_000_000 ether);
         euroToken.approve(address(revenue), type(uint256).max);

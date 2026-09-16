@@ -9,32 +9,26 @@ import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {JuvantiaAerarium} from "./JuvantiaAerarium.sol";
 import {JuvantiaRevenueDistributor} from "./JuvantiaRevenueDistributor.sol";
 
-/// @notice Atomically routes lease tax to the treasury and net revenue to asset holders.
+/// @notice Atomically routes lease tax to the central treasury and net revenue to asset holders.
 contract JuvantiaLeasingHub is Ownable, ReentrancyGuard {
     using SafeERC20 for IERC20;
+
     IERC20 public immutable paymentToken;
     JuvantiaAerarium public immutable aerarium;
     JuvantiaRevenueDistributor public immutable distributor;
-    uint256 public taxBps;
+
+    bytes32 public constant LEASING_CATEGORY = keccak256("LEASING");
     mapping(address => mapping(bytes32 => bool)) public paid;
 
-    event TaxRateSet(uint256 taxBps);
     event LeasePaid(bytes32 indexed leaseId, address indexed payer, address indexed asset, uint256 amount, uint256 tax, uint256 net);
 
-    constructor(address token, address treasury, address revenue, address admin, uint256 rate) Ownable(admin) {
-        require(token.code.length > 0 && rate <= 10_000, "Invalid configuration");
+    constructor(address token, address treasury, address revenue, address admin) Ownable(admin) {
+        require(token.code.length > 0, "Invalid configuration");
         require(address(JuvantiaAerarium(treasury).revenueToken()) == token, "Treasury token mismatch");
         require(address(JuvantiaRevenueDistributor(revenue).revenueToken()) == token, "Revenue token mismatch");
         paymentToken = IERC20(token);
         aerarium = JuvantiaAerarium(treasury);
         distributor = JuvantiaRevenueDistributor(revenue);
-        taxBps = rate;
-    }
-
-    function setTaxBps(uint256 rate) external onlyOwner {
-        require(rate <= 10_000, "Invalid tax");
-        taxBps = rate;
-        emit TaxRateSet(rate);
     }
 
     function processLeasePayment(address asset, uint256 amount, bytes32 leaseId) external nonReentrant {
@@ -42,14 +36,18 @@ contract JuvantiaLeasingHub is Ownable, ReentrancyGuard {
         require(leaseId != bytes32(0) && amount > 0, "Invalid lease");
         require(!paid[msg.sender][leaseId], "Already paid");
         paid[msg.sender][leaseId] = true;
+
         uint256 beforeBalance = paymentToken.balanceOf(address(this));
         paymentToken.safeTransferFrom(msg.sender, address(this), amount);
         require(paymentToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
-        uint256 tax = Math.mulDiv(amount, taxBps, 10_000);
+
+        uint256 taxRate = aerarium.getTaxRateBps(LEASING_CATEGORY);
+        uint256 tax = Math.mulDiv(amount, taxRate, 10_000);
         uint256 net = amount - tax;
+
         if (tax > 0) {
             paymentToken.forceApprove(address(aerarium), tax);
-            aerarium.receiveTax(tax, "lease");
+            aerarium.receiveTax(tax, LEASING_CATEGORY);
         }
         if (net > 0) {
             paymentToken.forceApprove(address(distributor), net);

@@ -15,7 +15,6 @@ contract DeployJuvantia is Script {
     function run() external {
         require(block.chainid == vm.envUint("BLOCKCHAIN_CHAIN_ID"), "Unexpected blockchain");
         address euroToken = vm.envAddress("EURO_TOKEN_ADDRESS");
-        uint256 taxBps = vm.envUint("LEASE_TAX_BPS");
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
 
@@ -31,7 +30,7 @@ contract DeployJuvantia is Script {
             abi.encodeCall(JuvantiaTradeHub.initialize, (euroToken, deployer, address(revenue)))));
         revenue.setEscrow(trade, true);
         JuvantiaAerarium aerarium = new JuvantiaAerarium(euroToken, deployer);
-        JuvantiaLeasingHub leasing = new JuvantiaLeasingHub(euroToken, address(aerarium), address(revenue), deployer, taxBps);
+        JuvantiaLeasingHub leasing = new JuvantiaLeasingHub(euroToken, address(aerarium), address(revenue), deployer);
         JuvantiaServicePayments services = new JuvantiaServicePayments(euroToken);
         vm.stopBroadcast();
 
