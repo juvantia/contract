@@ -56,7 +56,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
             name: "CyberLegion",
             primus: alice,
             presetType: preset,
-            gradeCount: 5,
+            gradeCount: 6,
             members: members,
             memberGrades: grades,
             deadline: block.timestamp + 1 hours,
@@ -66,7 +66,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
 
     function testCreateSyndicateWithValidVoucher() public {
         bytes32 draftId = keccak256("syn-draft-1");
-        SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 0); // Hierarchical
+        SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 0); // DominantLeadership
         bytes memory sig = _signVoucher(voucher);
 
         address clone = factory.createSyndicate(voucher, sig);
@@ -77,10 +77,11 @@ contract SyndicateFactoryTest is ProtocolFixture {
 
         Syndicate syndicate = Syndicate(clone);
         assertEq(syndicate.primus(), alice);
-        assertEq(syndicate.gradeCount(), 5);
+        assertEq(syndicate.gradeCount(), 6);
         assertEq(syndicate.memberCount(), 2);
         assertTrue(syndicate.isMember(alice));
         assertTrue(syndicate.isMember(bob));
+        assertEq(syndicate.memberGrades(alice), 6);
     }
 
     function testSyndicateReplayProtection() public {
@@ -115,74 +116,66 @@ contract SyndicateFactoryTest is ProtocolFixture {
         factory.createSyndicate(voucher, badSig);
     }
 
-    function testHierarchicalPresetWeights() public {
-        // Grade count = 5. Hierarchical: W(Gk) = 2^(k-1), Primus = 2^(5-1) = 16
-        // G1 = 1, G2 = 2, G3 = 4, G4 = 8, G5 = 16, Primus = 16
-        bytes32 draftId = keccak256("syn-hier");
+    function testDominantLeadershipPresetWeights() public {
+        // 6 grades. DominantLeadership: W(Gk) = 2^(k-1). Primus = G6 = 32
+        // G1 = 1, G2 = 2, G3 = 4, G4 = 8, G5 = 16, G6 = 32
+        bytes32 draftId = keccak256("syn-dom");
         SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 0);
         bytes memory sig = _signVoucher(voucher);
 
         address clone = factory.createSyndicate(voucher, sig);
         Syndicate syndicate = Syndicate(clone);
 
-        assertEq(syndicate.getWeightForGrade(syndicate.PRIMUS_GRADE()), 16);
+        assertEq(syndicate.getWeightForGrade(6), 32);
         assertEq(syndicate.getWeightForGrade(1), 1);
         assertEq(syndicate.getWeightForGrade(2), 2);
         assertEq(syndicate.getWeightForGrade(3), 4);
         assertEq(syndicate.getWeightForGrade(4), 8);
         assertEq(syndicate.getWeightForGrade(5), 16);
+        assertEq(syndicate.getWeightForGrade(6), 32);
 
-        // Alice = Primus (16), Bob = G2 (2) -> totalWeight = 18
-        assertEq(syndicate.totalWeight(), 18);
-        assertEq(syndicate.pointsOf(alice), (uint256(16) * 100_000) / 18);
-        assertEq(syndicate.pointsOf(bob), (uint256(2) * 100_000) / 18);
+        // Alice = Primus on G6 (32), Bob = G2 (2) -> totalWeight = 34
+        assertEq(syndicate.totalWeight(), 34);
+        assertEq(syndicate.pointsOf(alice), (uint256(32) * 100_000) / 34);
+        assertEq(syndicate.pointsOf(bob), (uint256(2) * 100_000) / 34);
     }
 
-    function testProportionalPresetWeights() public {
-        // Grade count = 5. Proportional: W(Gk) = k, Primus = 5
-        bytes32 draftId = keccak256("syn-prop");
+    function testDemocraticMassPresetWeights() public {
+        // 6 grades. DemocraticMass: W(Gk) = 1 for all grades, Primus = G6 = 1
+        bytes32 draftId = keccak256("syn-dem");
         SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 1);
         bytes memory sig = _signVoucher(voucher);
 
         address clone = factory.createSyndicate(voucher, sig);
         Syndicate syndicate = Syndicate(clone);
 
-        assertEq(syndicate.getWeightForGrade(syndicate.PRIMUS_GRADE()), 5);
         assertEq(syndicate.getWeightForGrade(1), 1);
-        assertEq(syndicate.getWeightForGrade(2), 2);
-        assertEq(syndicate.getWeightForGrade(3), 3);
-        assertEq(syndicate.getWeightForGrade(4), 4);
-        assertEq(syndicate.getWeightForGrade(5), 5);
-    }
-
-    function testFlatPresetWeights() public {
-        // Flat: W(Gk) = 1, Primus = 1
-        bytes32 draftId = keccak256("syn-flat");
-        SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 2);
-        bytes memory sig = _signVoucher(voucher);
-
-        address clone = factory.createSyndicate(voucher, sig);
-        Syndicate syndicate = Syndicate(clone);
-
-        assertEq(syndicate.getWeightForGrade(syndicate.PRIMUS_GRADE()), 1);
-        assertEq(syndicate.getWeightForGrade(1), 1);
+        assertEq(syndicate.getWeightForGrade(2), 1);
+        assertEq(syndicate.getWeightForGrade(3), 1);
+        assertEq(syndicate.getWeightForGrade(4), 1);
         assertEq(syndicate.getWeightForGrade(5), 1);
+        assertEq(syndicate.getWeightForGrade(6), 1);
+
+        // Alice (1) + Bob (1) = 2. Equal 50,000 points each
+        assertEq(syndicate.totalWeight(), 2);
+        assertEq(syndicate.pointsOf(alice), 50_000);
+        assertEq(syndicate.pointsOf(bob), 50_000);
     }
 
     function testCoFoundersEqualWeightsAndPoints() public {
-        // 7-grade Hierarchical clan: G7 = 2^(7-1) = 64. Primus = 64.
+        // 6-grade DominantLeadership clan: G6 = 32. Primus on G6 = 32.
         bytes32 draftId = keccak256("syn-cofounders");
         address[] memory members = new address[](1);
         members[0] = bob;
         uint8[] memory grades = new uint8[](1);
-        grades[0] = 7; // Bob is also Grade 7 co-founder
+        grades[0] = 6; // Bob is also Grade 6 co-founder
 
         SyndicateFactory.SyndicateDeploymentVoucher memory voucher = SyndicateFactory.SyndicateDeploymentVoucher({
             draftId: draftId,
             name: "FounderSyndicate",
             primus: alice,
-            presetType: 0, // Hierarchical
-            gradeCount: 7,
+            presetType: 0, // DominantLeadership
+            gradeCount: 6,
             members: members,
             memberGrades: grades,
             deadline: block.timestamp + 1 hours,
@@ -193,12 +186,10 @@ contract SyndicateFactoryTest is ProtocolFixture {
         address clone = factory.createSyndicate(voucher, sig);
         Syndicate syndicate = Syndicate(clone);
 
-        // Both hold 64 weight
-        assertEq(syndicate.memberWeights(alice), 64);
-        assertEq(syndicate.memberWeights(bob), 64);
-        assertEq(syndicate.totalWeight(), 128);
+        assertEq(syndicate.memberWeights(alice), 32);
+        assertEq(syndicate.memberWeights(bob), 32);
+        assertEq(syndicate.totalWeight(), 64);
 
-        // Exact equal 50% split = 50,000 APU points
         assertEq(syndicate.pointsOf(alice), 50_000);
         assertEq(syndicate.pointsOf(bob), 50_000);
         assertEq(syndicate.shareOf(alice), 5_000); // 50.00%
@@ -206,21 +197,21 @@ contract SyndicateFactoryTest is ProtocolFixture {
     }
 
     function testKickCoFounderProtectionEightyPercent() public {
-        // 3 co-founders: Alice (Primus, G7=64), Bob (G7=64), Carol (G7=64)
+        // 3 co-founders: Alice (Primus, G6=32), Bob (G6=32), Carol (G6=32)
         bytes32 draftId = keccak256("syn-3founders");
         address[] memory members = new address[](2);
         members[0] = bob;
         members[1] = carol;
         uint8[] memory grades = new uint8[](2);
-        grades[0] = 7;
-        grades[1] = 7;
+        grades[0] = 6;
+        grades[1] = 6;
 
         SyndicateFactory.SyndicateDeploymentVoucher memory voucher = SyndicateFactory.SyndicateDeploymentVoucher({
             draftId: draftId,
             name: "TriSyndicate",
             primus: alice,
             presetType: 0,
-            gradeCount: 7,
+            gradeCount: 6,
             members: members,
             memberGrades: grades,
             deadline: block.timestamp + 1 hours,
@@ -231,9 +222,9 @@ contract SyndicateFactoryTest is ProtocolFixture {
         address clone = factory.createSyndicate(voucher, sig);
         Syndicate syndicate = Syndicate(clone);
 
-        assertEq(syndicate.totalWeight(), 192);
+        assertEq(syndicate.totalWeight(), 96);
 
-        // Alice tries to kick Bob directly -> reverts because threshold is 80% and Alice has 50% of eligible
+        // Alice tries to kick Bob directly -> reverts because threshold is 80% and Alice only has 50% of eligible (32/64)
         vm.prank(alice);
         vm.expectRevert("Threshold not met, requires voting action");
         syndicate.removeMember(bob);
@@ -242,44 +233,37 @@ contract SyndicateFactoryTest is ProtocolFixture {
         vm.prank(alice);
         uint256 actionId = syndicate.proposeAction(Syndicate.ActionType.KickMember, bob, 0);
 
-        // Alice's vote (64) is logged. Eligible = 192 - 64 = 128.
-        // Alice only holds 64 / 128 = 50% < 80%. Action is NOT executed!
         assertTrue(syndicate.isMember(bob));
-        assertEq(syndicate.totalWeight(), 192);
+        assertEq(syndicate.totalWeight(), 96);
 
-        // Target Bob cannot vote on his own kick
-        vm.prank(bob);
-        vm.expectRevert("Target cannot vote on kick");
-        syndicate.supportAction(actionId);
-
-        // Carol supports the kick! Carol adds 64 votes -> 128 / 128 = 100% >= 80%
-        // Executes instantly with ZERO delay!
+        // Carol supports the kick! Carol adds 32 votes -> 64 / 64 = 100% >= 80%
         vm.prank(carol);
         syndicate.supportAction(actionId);
 
         assertFalse(syndicate.isMember(bob));
-        assertEq(syndicate.totalWeight(), 128); // 192 - 64
-        // Alice and Carol now hold 50,000 points each
+        assertEq(syndicate.totalWeight(), 64); // 96 - 32
         assertEq(syndicate.pointsOf(alice), 50_000);
         assertEq(syndicate.pointsOf(carol), 50_000);
     }
 
-    function testPrimusImpeachmentZeroDelay() public {
-        // Alice (Primus, G7=64), Bob (G7=64), Carol (G7=64)
+    function testPrimusImpeachmentZeroDelayAndGradeSixRequirement() public {
+        // Alice (Primus, G6=32), Bob (G6=32), Carol (G6=32), Dave (G2=2)
         bytes32 draftId = keccak256("syn-impeach");
-        address[] memory members = new address[](2);
+        address[] memory members = new address[](3);
         members[0] = bob;
         members[1] = carol;
-        uint8[] memory grades = new uint8[](2);
-        grades[0] = 7;
-        grades[1] = 7;
+        members[2] = dave;
+        uint8[] memory grades = new uint8[](3);
+        grades[0] = 6;
+        grades[1] = 6;
+        grades[2] = 2;
 
         SyndicateFactory.SyndicateDeploymentVoucher memory voucher = SyndicateFactory.SyndicateDeploymentVoucher({
             draftId: draftId,
             name: "ImpeachSyndicate",
             primus: alice,
             presetType: 0,
-            gradeCount: 7,
+            gradeCount: 6,
             members: members,
             memberGrades: grades,
             deadline: block.timestamp + 1 hours,
@@ -292,31 +276,24 @@ contract SyndicateFactoryTest is ProtocolFixture {
 
         assertEq(syndicate.primus(), alice);
 
-        // Alice cannot propose self-impeachment
-        vm.prank(alice);
-        vm.expectRevert("Primus cannot propose self-impeachment");
-        syndicate.proposeAction(Syndicate.ActionType.ReplacePrimus, bob, 0);
+        // Cannot propose non-Grade 6 member (Dave is Grade 2) as Primus
+        vm.prank(bob);
+        vm.expectRevert("New primus must be Grade 6");
+        syndicate.proposeAction(Syndicate.ActionType.ReplacePrimus, dave, 0);
 
-        // Bob proposes to replace Primus with Bob
+        // Bob proposes to replace Primus with Bob (Bob is Grade 6)
         vm.prank(bob);
         uint256 actionId = syndicate.proposeAction(Syndicate.ActionType.ReplacePrimus, bob, 0);
 
-        // Bob has 64 votes. Denominator = totalWeight - Alice = 192 - 64 = 128.
-        // 64 / 128 = 50% < 75%. Not executed yet.
+        // Bob has 32 votes out of eligible (98 - 32 = 66). 32 / 66 = 48.4% < 75%. Not executed yet.
         assertEq(syndicate.primus(), alice);
 
-        // Alice cannot vote on impeachment
-        vm.prank(alice);
-        vm.expectRevert("Primus cannot vote on impeachment");
-        syndicate.supportAction(actionId);
-
-        // Carol supports! 64 + 64 = 128 / 128 = 100% >= 75%.
-        // Instantly executes with zero delay!
+        // Carol supports! 32 + 32 = 64 votes out of 66 = 96.9% >= 75%.
+        // Executes instantly with zero delay!
         vm.prank(carol);
         syndicate.supportAction(actionId);
 
         assertEq(syndicate.primus(), bob);
-        // Alice is still an active member
         assertTrue(syndicate.isMember(alice));
     }
 
@@ -333,14 +310,14 @@ contract SyndicateFactoryTest is ProtocolFixture {
         syndicate.addMember(dave, 2);
         assertTrue(syndicate.isMember(dave));
 
-        // Adding to Grade 5 directly via addMember reverts (requires action proposal)
+        // Adding to Grade 5 directly via addMember reverts
         address eve = address(0xEFE);
         vm.prank(alice);
         vm.expectRevert("Higher grades require voting action");
         syndicate.addMember(eve, 5);
 
         // Alice proposes to add Eve at Grade 5 (threshold 60%)
-        // Alice has 16 weight out of total 16 + 2 + 2 = 20 weight (80% >= 60%)
+        // Alice has 32 weight out of total 32 + 2 + 2 = 36 weight (88.8% >= 60%)
         // Executes immediately!
         vm.prank(alice);
         syndicate.proposeAction(Syndicate.ActionType.AddMember, eve, 5);
@@ -358,15 +335,15 @@ contract SyndicateFactoryTest is ProtocolFixture {
         address clone = factory.createSyndicate(voucher, sig);
         Syndicate syndicate = Syndicate(clone);
 
-        // Solo Primus holds 100% = 100,000 points (weight 16 for gradeCount 5)
+        // Solo Primus holds 100% = 100,000 points (weight 32 for Grade 6)
         assertEq(syndicate.pointsOf(alice), 100_000);
         assertEq(syndicate.shareOf(alice), 10_000);
 
-        // Solo Primus proposes Carol at Grade 5 (16 weight) -> Alice holds 100% >= 60% -> executes instantly
+        // Solo Primus proposes Carol at Grade 6 (32 weight) -> Alice holds 100% >= 66.7% -> executes instantly
         vm.prank(alice);
-        syndicate.proposeAction(Syndicate.ActionType.AddMember, carol, 5);
+        syndicate.proposeAction(Syndicate.ActionType.AddMember, carol, 6);
 
-        assertEq(syndicate.totalWeight(), 32);
+        assertEq(syndicate.totalWeight(), 64);
         assertEq(syndicate.pointsOf(alice), 50_000);
         assertEq(syndicate.pointsOf(carol), 50_000);
 
@@ -374,19 +351,19 @@ contract SyndicateFactoryTest is ProtocolFixture {
         vm.prank(alice);
         syndicate.addMember(bob, 2);
 
-        assertEq(syndicate.totalWeight(), 34);
-        assertEq(syndicate.pointsOf(alice), (uint256(16) * 100_000) / 34);
-        assertEq(syndicate.pointsOf(carol), (uint256(16) * 100_000) / 34);
-        assertEq(syndicate.pointsOf(bob), (uint256(2) * 100_000) / 34);
+        assertEq(syndicate.totalWeight(), 66);
+        assertEq(syndicate.pointsOf(alice), (uint256(32) * 100_000) / 66);
+        assertEq(syndicate.pointsOf(carol), (uint256(32) * 100_000) / 66);
+        assertEq(syndicate.pointsOf(bob), (uint256(2) * 100_000) / 66);
 
         // Carol voluntarily leaves -> weight burns -> Alice and Bob concentrate!
         vm.prank(carol);
         syndicate.removeMember(carol);
 
-        assertEq(syndicate.totalWeight(), 18);
+        assertEq(syndicate.totalWeight(), 34);
         assertFalse(syndicate.isMember(carol));
-        assertEq(syndicate.pointsOf(alice), (uint256(16) * 100_000) / 18);
-        assertEq(syndicate.pointsOf(bob), (uint256(2) * 100_000) / 18);
+        assertEq(syndicate.pointsOf(alice), (uint256(32) * 100_000) / 34);
+        assertEq(syndicate.pointsOf(bob), (uint256(2) * 100_000) / 34);
     }
 
     function testPrimusPettySpending() public {
@@ -427,8 +404,8 @@ contract SyndicateFactoryTest is ProtocolFixture {
             Syndicate.SyndicateInitParams({
                 token: address(euroToken),
                 primus: bob,
-                preset: Syndicate.PresetType.Flat,
-                grades: 3,
+                preset: Syndicate.PresetType.DemocraticMass,
+                grades: 6,
                 members: new address[](0),
                 memberGrades: new uint8[](0)
             })

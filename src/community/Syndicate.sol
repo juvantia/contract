@@ -12,9 +12,8 @@ contract Syndicate is Initializable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     enum PresetType {
-        Hierarchical, // 0: W(Gk) = 2^(k-1), W(Primus) = 2^(gradeCount - 1)
-        Proportional, // 1: W(Gk) = k, W(Primus) = gradeCount
-        Flat          // 2: W(Gk) = 1, W(Primus) = 1
+        DominantLeadership, // 0: W(Gk) = 2^(k-1), G1=1..G6=32
+        DemocraticMass      // 1: W(Gk) = 1 for all grades
     }
 
     enum ActionType {
@@ -32,7 +31,9 @@ contract Syndicate is Initializable, ReentrancyGuard {
         bool executed;
     }
 
-    uint8 public constant PRIMUS_GRADE = 255;
+    uint8 public constant GRADE_COUNT = 6;
+    uint8 public constant PRIMUS_REQUIRED_GRADE = 6;
+    uint8 public constant PRIMUS_GRADE = 255; // Backward-compatibility alias
 
     IERC20 public paymentToken;
     address public primus;
@@ -90,22 +91,23 @@ contract Syndicate is Initializable, ReentrancyGuard {
     function initialize(SyndicateInitParams calldata params) external initializer {
         require(params.token.code.length > 0, "Invalid token");
         require(params.primus != address(0), "Invalid primus");
-        require(params.grades >= 2 && params.grades <= 7, "Grades must be between 2 and 7");
+        require(params.grades == GRADE_COUNT, "Syndicate must have 6 grades");
+        require(uint8(params.preset) <= 1, "Invalid preset");
         require(params.members.length == params.memberGrades.length, "Members and grades length mismatch");
 
         paymentToken = IERC20(params.token);
         primus = params.primus;
         presetType = params.preset;
-        gradeCount = params.grades;
+        gradeCount = GRADE_COUNT;
 
         pettyLimit = 500 ether;
         standardLimit = 5_000 ether;
         majorLimit = 25_000 ether;
 
-        // Register Primus as initial member with highest grade (co-founder equal status)
-        uint256 primusWeight = getWeightForGrade(gradeCount);
+        // Register Primus as initial member holding Grade 6
+        uint256 primusWeight = getWeightForGrade(PRIMUS_REQUIRED_GRADE);
         isMember[params.primus] = true;
-        memberGrades[params.primus] = gradeCount;
+        memberGrades[params.primus] = PRIMUS_REQUIRED_GRADE;
         memberWeights[params.primus] = primusWeight;
         totalWeight = primusWeight;
 
@@ -113,7 +115,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
         members.push(params.primus);
 
         emit PrimusChanged(address(0), params.primus);
-        emit MemberAdded(params.primus, gradeCount, primusWeight);
+        emit MemberAdded(params.primus, PRIMUS_REQUIRED_GRADE, primusWeight);
 
         // Register initial starting members if provided
         for (uint256 i = 0; i < params.members.length; i++) {
@@ -125,19 +127,17 @@ contract Syndicate is Initializable, ReentrancyGuard {
         return members.length;
     }
 
-    /// @notice Returns weight for a grade according to clan preset. Primus and Grade 7 share equal top weight.
+    /// @notice Returns weight for a grade according to clan preset. Primus holds Grade 6.
     function getWeightForGrade(uint8 grade) public view returns (uint256) {
         if (grade == PRIMUS_GRADE) {
-            grade = gradeCount;
+            grade = PRIMUS_REQUIRED_GRADE;
         }
 
-        require(grade >= 1 && grade <= gradeCount, "Invalid grade");
-        if (presetType == PresetType.Hierarchical) {
-            return 2 ** (grade - 1); // 2^(k-1)
-        } else if (presetType == PresetType.Proportional) {
-            return uint256(grade); // k
+        require(grade >= 1 && grade <= GRADE_COUNT, "Invalid grade");
+        if (presetType == PresetType.DominantLeadership) {
+            return 2 ** (grade - 1); // G1=1, G2=2, G3=4, G4=8, G5=16, G6=32
         } else {
-            return 1; // Flat: 1 for all
+            return 1; // DemocraticMass: 1 for all
         }
     }
 
@@ -147,8 +147,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
         if (grade == 3) return 5_000;   // G3: 50.0%
         if (grade == 4) return 5_500;   // G4: 55.0%
         if (grade == 5) return 6_000;   // G5: 60.0%
-        if (grade == 6) return 6_667;   // G6: 66.67% (2/3)
-        return 7_500;                   // G7: 75.0% (3/4)
+        return 6_667;                   // G6: 66.67% (2/3)
     }
 
     /// @notice Returns kick threshold in basis points (10000 = 100.00%).
@@ -158,8 +157,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
         if (grade == 3) return 5_500;   // G3: 55.0%
         if (grade == 4) return 6_000;   // G4: 60.0%
         if (grade == 5) return 6_667;   // G5: 66.67% (2/3)
-        if (grade == 6) return 7_500;   // G6: 75.0% (3/4)
-        return 8_000;                   // G7: 80.0% (4/5)
+        return 8_000;                   // G6: 80.0% (4/5)
     }
 
     /// @notice Normalized APU-points on the fixed 100,000 total clan scale.
@@ -183,7 +181,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
     function _addMember(address newMember, uint8 grade) internal {
         require(newMember != address(0) && newMember != address(this), "Invalid address");
         require(!isMember[newMember], "Already member");
-        require(grade >= 1 && grade <= gradeCount, "Invalid grade");
+        require(grade >= 1 && grade <= GRADE_COUNT, "Invalid grade");
 
         uint256 weight = getWeightForGrade(grade);
         isMember[newMember] = true;
@@ -251,7 +249,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
     function _changeGrade(address member, uint8 newGrade) internal {
         require(member != primus, "Cannot change primus grade");
         require(isMember[member], "Not a member");
-        require(newGrade >= 1 && newGrade <= gradeCount, "Invalid grade");
+        require(newGrade >= 1 && newGrade <= GRADE_COUNT, "Invalid grade");
         require(memberGrades[member] != newGrade, "Same grade");
 
         uint256 oldWeight = memberWeights[member];
@@ -264,45 +262,28 @@ contract Syndicate is Initializable, ReentrancyGuard {
         emit GradeChanged(member, newGrade, newWeight);
     }
 
-    /// @notice Voluntary handover of Primus mantle by the current Primus.
+    /// @notice Voluntary handover of Primus mantle by the current Primus. New Primus must be Grade 6.
     function setPrimus(address newPrimus) external onlyPrimus {
+        require(isMember[newPrimus] && memberGrades[newPrimus] == PRIMUS_REQUIRED_GRADE, "Primus must be Grade 6");
         _setPrimus(newPrimus);
     }
 
     function _setPrimus(address newPrimus) internal {
         require(newPrimus != address(0) && newPrimus != address(this), "Invalid primus");
         require(newPrimus != primus, "Already primus");
+        require(isMember[newPrimus] && memberGrades[newPrimus] == PRIMUS_REQUIRED_GRADE, "Primus must be Grade 6");
 
         address oldPrimus = primus;
-        uint256 topGradeWeight = getWeightForGrade(gradeCount);
-
-        if (isMember[newPrimus]) {
-            uint256 oldWeight = memberWeights[newPrimus];
-            if (oldWeight != topGradeWeight) {
-                totalWeight = totalWeight - oldWeight + topGradeWeight;
-                memberGrades[newPrimus] = gradeCount;
-                memberWeights[newPrimus] = topGradeWeight;
-            }
-        } else {
-            isMember[newPrimus] = true;
-            memberGrades[newPrimus] = gradeCount;
-            memberWeights[newPrimus] = topGradeWeight;
-            memberIndex[newPrimus] = members.length;
-            members.push(newPrimus);
-            totalWeight += topGradeWeight;
-            emit MemberAdded(newPrimus, gradeCount, topGradeWeight);
-        }
-
         primus = newPrimus;
         emit PrimusChanged(oldPrimus, newPrimus);
     }
 
-    /// @notice Propose a clan action (Admission G3..G7, Kick, GradeChange G3..G7, Replace Primus).
+    /// @notice Propose a clan action (Admission G3..G6, Kick, GradeChange G3..G6, Replace Primus).
     function proposeAction(ActionType aType, address target, uint8 grade) external onlyMember returns (uint256 actionId) {
         if (aType == ActionType.AddMember) {
             require(target != address(0) && target != address(this), "Invalid address");
             require(!isMember[target], "Already member");
-            require(grade >= 1 && grade <= gradeCount, "Invalid grade");
+            require(grade >= 1 && grade <= GRADE_COUNT, "Invalid grade");
         } else if (aType == ActionType.KickMember) {
             require(isMember[target], "Not a member");
             require(target != primus, "Cannot kick primus");
@@ -310,11 +291,12 @@ contract Syndicate is Initializable, ReentrancyGuard {
         } else if (aType == ActionType.ChangeGrade) {
             require(isMember[target], "Not a member");
             require(target != primus, "Cannot change primus grade");
-            require(grade >= 1 && grade <= gradeCount, "Invalid grade");
+            require(grade >= 1 && grade <= GRADE_COUNT, "Invalid grade");
             require(memberGrades[target] != grade, "Same grade");
         } else if (aType == ActionType.ReplacePrimus) {
             require(target != address(0) && target != address(this), "Invalid address");
             require(target != primus, "Already primus");
+            require(isMember[target] && memberGrades[target] == PRIMUS_REQUIRED_GRADE, "New primus must be Grade 6");
             require(msg.sender != primus, "Primus cannot propose self-impeachment");
         }
 
