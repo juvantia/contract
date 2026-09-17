@@ -7,14 +7,29 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-/// @notice Gaming clan implementation with shared treasury and internal 100,000 APU-points scale.
+/// @notice Gaming clan implementation with shared treasury, 100,000 APU-points scale, and zero-delay governance thresholds.
 contract Syndicate is Initializable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
     enum PresetType {
-        Hierarchical, // 0: W(Gk) = 2^(k-1), W(Primus) = 2^gradeCount
-        Proportional, // 1: W(Gk) = k, W(Primus) = gradeCount + 1
-        Flat          // 2: W(Gk) = 1, W(Primus) = 2
+        Hierarchical, // 0: W(Gk) = 2^(k-1), W(Primus) = 2^(gradeCount - 1)
+        Proportional, // 1: W(Gk) = k, W(Primus) = gradeCount
+        Flat          // 2: W(Gk) = 1, W(Primus) = 1
+    }
+
+    enum ActionType {
+        AddMember,
+        KickMember,
+        ChangeGrade,
+        ReplacePrimus
+    }
+
+    struct GovernanceAction {
+        ActionType actionType;
+        address target;
+        uint8 grade;
+        uint256 forVotes;
+        bool executed;
     }
 
     uint8 public constant PRIMUS_GRADE = 255;
@@ -35,12 +50,19 @@ contract Syndicate is Initializable, ReentrancyGuard {
     address[] public members;
     mapping(address => uint256) private memberIndex;
 
+    uint256 public actionCount;
+    mapping(uint256 => GovernanceAction) public actions;
+    mapping(uint256 => mapping(address => bool)) public hasVotedAction;
+
     event PrimusChanged(address indexed oldPrimus, address indexed newPrimus);
     event MemberAdded(address indexed member, uint8 grade, uint256 weight);
     event MemberRemoved(address indexed member, uint256 burnedWeight);
     event GradeChanged(address indexed member, uint8 newGrade, uint256 newWeight);
     event OperatingDeposit(address indexed payer, bytes32 indexed referenceId, uint256 amount);
     event OperatingSpent(address indexed recipient, bytes32 indexed referenceId, uint256 amount);
+    event ActionProposed(uint256 indexed actionId, ActionType indexed actionType, address indexed target, uint8 grade, address proposer);
+    event ActionVoted(uint256 indexed actionId, address indexed voter, uint256 weight);
+    event ActionExecuted(uint256 indexed actionId, ActionType indexed actionType, address indexed target);
 
     struct SyndicateInitParams {
         address token;
@@ -53,6 +75,11 @@ contract Syndicate is Initializable, ReentrancyGuard {
 
     modifier onlyPrimus() {
         require(msg.sender == primus, "Only primus");
+        _;
+    }
+
+    modifier onlyMember() {
+        require(isMember[msg.sender], "Only member");
         _;
     }
 
@@ -75,10 +102,10 @@ contract Syndicate is Initializable, ReentrancyGuard {
         standardLimit = 5_000 ether;
         majorLimit = 25_000 ether;
 
-        // Register Primus as initial member with Primus grade
-        uint256 primusWeight = getWeightForGrade(PRIMUS_GRADE);
+        // Register Primus as initial member with highest grade (co-founder equal status)
+        uint256 primusWeight = getWeightForGrade(gradeCount);
         isMember[params.primus] = true;
-        memberGrades[params.primus] = PRIMUS_GRADE;
+        memberGrades[params.primus] = gradeCount;
         memberWeights[params.primus] = primusWeight;
         totalWeight = primusWeight;
 
@@ -86,7 +113,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
         members.push(params.primus);
 
         emit PrimusChanged(address(0), params.primus);
-        emit MemberAdded(params.primus, PRIMUS_GRADE, primusWeight);
+        emit MemberAdded(params.primus, gradeCount, primusWeight);
 
         // Register initial starting members if provided
         for (uint256 i = 0; i < params.members.length; i++) {
@@ -98,16 +125,10 @@ contract Syndicate is Initializable, ReentrancyGuard {
         return members.length;
     }
 
-    /// @notice Returns weight for a grade according to clan preset.
+    /// @notice Returns weight for a grade according to clan preset. Primus and Grade 7 share equal top weight.
     function getWeightForGrade(uint8 grade) public view returns (uint256) {
         if (grade == PRIMUS_GRADE) {
-            if (presetType == PresetType.Hierarchical) {
-                return 2 ** gradeCount; // 2^gradeCount
-            } else if (presetType == PresetType.Proportional) {
-                return uint256(gradeCount) + 1;
-            } else {
-                return 2; // Flat: Primus has 2 weight
-            }
+            grade = gradeCount;
         }
 
         require(grade >= 1 && grade <= gradeCount, "Invalid grade");
@@ -116,8 +137,29 @@ contract Syndicate is Initializable, ReentrancyGuard {
         } else if (presetType == PresetType.Proportional) {
             return uint256(grade); // k
         } else {
-            return 1; // Flat: 1 weight
+            return 1; // Flat: 1 for all
         }
+    }
+
+    /// @notice Returns admission threshold in basis points (10000 = 100.00%).
+    function getAdmissionThreshold(uint8 grade) public pure returns (uint256) {
+        if (grade <= 2) return 0;       // G1, G2: Primus unilateral
+        if (grade == 3) return 5_000;   // G3: 50.0%
+        if (grade == 4) return 5_500;   // G4: 55.0%
+        if (grade == 5) return 6_000;   // G5: 60.0%
+        if (grade == 6) return 6_667;   // G6: 66.67% (2/3)
+        return 7_500;                   // G7: 75.0% (3/4)
+    }
+
+    /// @notice Returns kick threshold in basis points (10000 = 100.00%).
+    function getKickThreshold(uint8 grade) public pure returns (uint256) {
+        if (grade == 1) return 5_001;   // G1: > 50.0% (simple majority)
+        if (grade == 2) return 5_000;   // G2: 50.0%
+        if (grade == 3) return 5_500;   // G3: 55.0%
+        if (grade == 4) return 6_000;   // G4: 60.0%
+        if (grade == 5) return 6_667;   // G5: 66.67% (2/3)
+        if (grade == 6) return 7_500;   // G6: 75.0% (3/4)
+        return 8_000;                   // G7: 80.0% (4/5)
     }
 
     /// @notice Normalized APU-points on the fixed 100,000 total clan scale.
@@ -132,8 +174,9 @@ contract Syndicate is Initializable, ReentrancyGuard {
         return Math.mulDiv(memberWeights[member], 10_000, totalWeight);
     }
 
-    /// @notice Add a new member to the syndicate with a starting grade.
+    /// @notice Add a new member directly if admission threshold is 0 (G1 or G2). Higher grades require action proposal.
     function addMember(address newMember, uint8 grade) external onlyPrimus {
+        require(getAdmissionThreshold(grade) == 0, "Higher grades require voting action");
         _addMember(newMember, grade);
     }
 
@@ -154,12 +197,31 @@ contract Syndicate is Initializable, ReentrancyGuard {
         emit MemberAdded(newMember, grade, weight);
     }
 
-    /// @notice Remove a member (Primus kick or member self-exit). Weight burns instantly in O(1).
+    /// @notice Remove a member: self-exit always allowed; Primus kick allowed if Primus alone meets threshold.
     function removeMember(address member) external {
-        require(msg.sender == primus || msg.sender == member, "Only primus or self");
-        require(member != primus, "Cannot remove primus");
         require(isMember[member], "Not a member");
+        require(member != primus, "Cannot remove primus");
 
+        if (msg.sender == member) {
+            _removeMember(member);
+            return;
+        }
+
+        require(msg.sender == primus, "Only primus or self");
+        uint256 kickThreshold = getKickThreshold(memberGrades[member]);
+        uint256 eligibleWeight = totalWeight - memberWeights[member];
+        require(eligibleWeight > 0, "No eligible weight");
+
+        if (kickThreshold == 5_001) {
+            require(memberWeights[primus] * 10_000 > 5_000 * eligibleWeight, "Threshold not met, requires voting action");
+        } else {
+            require(memberWeights[primus] * 10_000 >= kickThreshold * eligibleWeight, "Threshold not met, requires voting action");
+        }
+
+        _removeMember(member);
+    }
+
+    function _removeMember(address member) internal {
         uint256 weight = memberWeights[member];
         totalWeight -= weight;
         delete memberWeights[member];
@@ -180,8 +242,13 @@ contract Syndicate is Initializable, ReentrancyGuard {
         emit MemberRemoved(member, weight);
     }
 
-    /// @notice Promote or demote a member.
+    /// @notice Direct grade change if new grade has threshold 0 (G1, G2); higher grades require voting action.
     function changeGrade(address member, uint8 newGrade) external onlyPrimus {
+        require(getAdmissionThreshold(newGrade) == 0, "Higher grades require voting action");
+        _changeGrade(member, newGrade);
+    }
+
+    function _changeGrade(address member, uint8 newGrade) internal {
         require(member != primus, "Cannot change primus grade");
         require(isMember[member], "Not a member");
         require(newGrade >= 1 && newGrade <= gradeCount, "Invalid grade");
@@ -197,37 +264,145 @@ contract Syndicate is Initializable, ReentrancyGuard {
         emit GradeChanged(member, newGrade, newWeight);
     }
 
-    /// @notice Transfer Primus leadership.
+    /// @notice Voluntary handover of Primus mantle by the current Primus.
     function setPrimus(address newPrimus) external onlyPrimus {
+        _setPrimus(newPrimus);
+    }
+
+    function _setPrimus(address newPrimus) internal {
         require(newPrimus != address(0) && newPrimus != address(this), "Invalid primus");
         require(newPrimus != primus, "Already primus");
 
         address oldPrimus = primus;
-        uint256 primusWeight = getWeightForGrade(PRIMUS_GRADE);
+        uint256 topGradeWeight = getWeightForGrade(gradeCount);
 
         if (isMember[newPrimus]) {
-            // Adjust weight for new Primus
-            uint256 oldNewPrimusWeight = memberWeights[newPrimus];
-            totalWeight = totalWeight - oldNewPrimusWeight + primusWeight;
+            uint256 oldWeight = memberWeights[newPrimus];
+            if (oldWeight != topGradeWeight) {
+                totalWeight = totalWeight - oldWeight + topGradeWeight;
+                memberGrades[newPrimus] = gradeCount;
+                memberWeights[newPrimus] = topGradeWeight;
+            }
         } else {
             isMember[newPrimus] = true;
+            memberGrades[newPrimus] = gradeCount;
+            memberWeights[newPrimus] = topGradeWeight;
             memberIndex[newPrimus] = members.length;
             members.push(newPrimus);
-            totalWeight += primusWeight;
+            totalWeight += topGradeWeight;
+            emit MemberAdded(newPrimus, gradeCount, topGradeWeight);
         }
 
-        // Demote old primus to highest regular grade
-        uint256 oldPrimusWeight = getWeightForGrade(gradeCount);
-        memberGrades[oldPrimus] = gradeCount;
-        memberWeights[oldPrimus] = oldPrimusWeight;
-        totalWeight = totalWeight - primusWeight + oldPrimusWeight;
-
-        // Set new primus
-        memberGrades[newPrimus] = PRIMUS_GRADE;
-        memberWeights[newPrimus] = primusWeight;
         primus = newPrimus;
-
         emit PrimusChanged(oldPrimus, newPrimus);
+    }
+
+    /// @notice Propose a clan action (Admission G3..G7, Kick, GradeChange G3..G7, Replace Primus).
+    function proposeAction(ActionType aType, address target, uint8 grade) external onlyMember returns (uint256 actionId) {
+        if (aType == ActionType.AddMember) {
+            require(target != address(0) && target != address(this), "Invalid address");
+            require(!isMember[target], "Already member");
+            require(grade >= 1 && grade <= gradeCount, "Invalid grade");
+        } else if (aType == ActionType.KickMember) {
+            require(isMember[target], "Not a member");
+            require(target != primus, "Cannot kick primus");
+            require(msg.sender != target, "Target cannot propose self-kick");
+        } else if (aType == ActionType.ChangeGrade) {
+            require(isMember[target], "Not a member");
+            require(target != primus, "Cannot change primus grade");
+            require(grade >= 1 && grade <= gradeCount, "Invalid grade");
+            require(memberGrades[target] != grade, "Same grade");
+        } else if (aType == ActionType.ReplacePrimus) {
+            require(target != address(0) && target != address(this), "Invalid address");
+            require(target != primus, "Already primus");
+            require(msg.sender != primus, "Primus cannot propose self-impeachment");
+        }
+
+        actionId = ++actionCount;
+        GovernanceAction storage action = actions[actionId];
+        action.actionType = aType;
+        action.target = target;
+        action.grade = grade;
+
+        hasVotedAction[actionId][msg.sender] = true;
+        uint256 voterWeight = memberWeights[msg.sender];
+        action.forVotes = voterWeight;
+
+        emit ActionProposed(actionId, aType, target, grade, msg.sender);
+        emit ActionVoted(actionId, msg.sender, voterWeight);
+
+        if (_isActionThresholdMet(actionId)) {
+            _executeAction(actionId);
+        }
+    }
+
+    /// @notice Support an active action. Zero-delay execution triggers instantly when threshold is met.
+    function supportAction(uint256 actionId) external onlyMember {
+        GovernanceAction storage action = actions[actionId];
+        require(action.target != address(0), "Action not found");
+        require(!action.executed, "Already executed");
+        require(!hasVotedAction[actionId][msg.sender], "Already voted");
+
+        if (action.actionType == ActionType.KickMember) {
+            require(msg.sender != action.target, "Target cannot vote on kick");
+        } else if (action.actionType == ActionType.ReplacePrimus) {
+            require(msg.sender != primus, "Primus cannot vote on impeachment");
+        }
+
+        hasVotedAction[actionId][msg.sender] = true;
+        uint256 voterWeight = memberWeights[msg.sender];
+        action.forVotes += voterWeight;
+
+        emit ActionVoted(actionId, msg.sender, voterWeight);
+
+        if (_isActionThresholdMet(actionId)) {
+            _executeAction(actionId);
+        }
+    }
+
+    /// @notice Check if threshold is met for an action.
+    function isActionThresholdMet(uint256 actionId) external view returns (bool) {
+        return _isActionThresholdMet(actionId);
+    }
+
+    function _isActionThresholdMet(uint256 actionId) internal view returns (bool) {
+        GovernanceAction storage action = actions[actionId];
+        if (action.actionType == ActionType.AddMember || action.actionType == ActionType.ChangeGrade) {
+            uint256 threshold = getAdmissionThreshold(action.grade);
+            if (threshold == 0) return true;
+            return action.forVotes * 10_000 >= threshold * totalWeight;
+        } else if (action.actionType == ActionType.KickMember) {
+            uint8 targetGrade = memberGrades[action.target];
+            uint256 threshold = getKickThreshold(targetGrade);
+            uint256 eligibleWeight = totalWeight - memberWeights[action.target];
+            if (eligibleWeight == 0) return false;
+            if (threshold == 5_001) {
+                return action.forVotes * 10_000 > 5_000 * eligibleWeight;
+            }
+            return action.forVotes * 10_000 >= threshold * eligibleWeight;
+        } else if (action.actionType == ActionType.ReplacePrimus) {
+            uint256 eligibleWeight = totalWeight - memberWeights[primus];
+            if (eligibleWeight == 0) return false;
+            return action.forVotes * 10_000 >= 7_500 * eligibleWeight; // 75.0%
+        }
+        return false;
+    }
+
+    function _executeAction(uint256 actionId) internal {
+        GovernanceAction storage action = actions[actionId];
+        action.executed = true;
+
+        if (action.actionType == ActionType.AddMember) {
+            _addMember(action.target, action.grade);
+        } else if (action.actionType == ActionType.KickMember) {
+            _removeMember(action.target);
+        } else if (action.actionType == ActionType.ChangeGrade) {
+            _changeGrade(action.target, action.grade);
+        } else if (action.actionType == ActionType.ReplacePrimus) {
+            _setPrimus(action.target);
+        }
+
+        emit ActionExecuted(actionId, action.actionType, action.target);
     }
 
     /// @notice Operating treasury balance.
