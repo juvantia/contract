@@ -13,7 +13,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
 
     enum PresetType {
         DominantLeadership, // 0: W(Gk) = 2^(k-1), G1=1..G6=32
-        DemocraticMass      // 1: W(Gk) = 1 for all grades
+        DemocraticMass      // 1: Moderate: G1=1, G2=2, G3=3, G4=4, G5=6, G6=8
     }
 
     enum ActionType {
@@ -137,7 +137,13 @@ contract Syndicate is Initializable, ReentrancyGuard {
         if (presetType == PresetType.DominantLeadership) {
             return 2 ** (grade - 1); // G1=1, G2=2, G3=4, G4=8, G5=16, G6=32
         } else {
-            return 1; // DemocraticMass: 1 for all
+            // DemocraticMass (Moderate): G1=1, G2=2, G3=3, G4=4, G5=6, G6=8
+            if (grade == 1) return 1;
+            if (grade == 2) return 2;
+            if (grade == 3) return 3;
+            if (grade == 4) return 4;
+            if (grade == 5) return 6;
+            return 8; // grade 6
         }
     }
 

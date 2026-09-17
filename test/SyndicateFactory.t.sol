@@ -141,7 +141,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
     }
 
     function testDemocraticMassPresetWeights() public {
-        // 6 grades. DemocraticMass: W(Gk) = 1 for all grades, Primus = G6 = 1
+        // 6 grades. DemocraticMass (Moderate): G1=1, G2=2, G3=3, G4=4, G5=6, G6=8
         bytes32 draftId = keccak256("syn-dem");
         SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 1);
         bytes memory sig = _signVoucher(voucher);
@@ -150,16 +150,16 @@ contract SyndicateFactoryTest is ProtocolFixture {
         Syndicate syndicate = Syndicate(clone);
 
         assertEq(syndicate.getWeightForGrade(1), 1);
-        assertEq(syndicate.getWeightForGrade(2), 1);
-        assertEq(syndicate.getWeightForGrade(3), 1);
-        assertEq(syndicate.getWeightForGrade(4), 1);
-        assertEq(syndicate.getWeightForGrade(5), 1);
-        assertEq(syndicate.getWeightForGrade(6), 1);
+        assertEq(syndicate.getWeightForGrade(2), 2);
+        assertEq(syndicate.getWeightForGrade(3), 3);
+        assertEq(syndicate.getWeightForGrade(4), 4);
+        assertEq(syndicate.getWeightForGrade(5), 6);
+        assertEq(syndicate.getWeightForGrade(6), 8);
 
-        // Alice (1) + Bob (1) = 2. Equal 50,000 points each
-        assertEq(syndicate.totalWeight(), 2);
-        assertEq(syndicate.pointsOf(alice), 50_000);
-        assertEq(syndicate.pointsOf(bob), 50_000);
+        // Alice (G6 = 8) + Bob (G2 = 2) = 10 total weight
+        assertEq(syndicate.totalWeight(), 10);
+        assertEq(syndicate.pointsOf(alice), 80_000);
+        assertEq(syndicate.pointsOf(bob), 20_000);
     }
 
     function testCoFoundersEqualWeightsAndPoints() public {
