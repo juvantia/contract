@@ -305,24 +305,39 @@ contract SyndicateFactoryTest is ProtocolFixture {
         address clone = factory.createSyndicate(voucher, sig);
         Syndicate syndicate = Syndicate(clone);
 
-        // Grade 1 and 2: Primus unilateral (threshold = 0)
+        // Grade 1 and 2: Primus unilateral (threshold = 0) issues invitation
         vm.prank(alice);
-        syndicate.addMember(dave, 2);
-        assertTrue(syndicate.isMember(dave));
+        syndicate.inviteMember(dave, 2);
+        assertFalse(syndicate.isMember(dave));
+        assertEq(syndicate.invitations(dave), 2);
 
-        // Adding to Grade 5 directly via addMember reverts
+        // Dave confirms onchain via acceptInvitation()
+        vm.prank(dave);
+        syndicate.acceptInvitation();
+        assertTrue(syndicate.isMember(dave));
+        assertEq(syndicate.memberGrades(dave), 2);
+        assertEq(syndicate.invitations(dave), 0);
+
+        // Inviting to Grade 5 directly via inviteMember reverts
         address eve = address(0xEFE);
         vm.prank(alice);
         vm.expectRevert("Higher grades require voting action");
-        syndicate.addMember(eve, 5);
+        syndicate.inviteMember(eve, 5);
 
         // Alice proposes to add Eve at Grade 5 (threshold 60%)
         // Alice has 32 weight out of total 32 + 2 + 2 = 36 weight (88.8% >= 60%)
-        // Executes immediately!
+        // Action executes, registering invitation for Eve!
         vm.prank(alice);
         syndicate.proposeAction(Syndicate.ActionType.AddMember, eve, 5);
+        assertFalse(syndicate.isMember(eve));
+        assertEq(syndicate.invitations(eve), 5);
+
+        // Eve confirms onchain
+        vm.prank(eve);
+        syndicate.acceptInvitation();
         assertTrue(syndicate.isMember(eve));
         assertEq(syndicate.memberGrades(eve), 5);
+        assertEq(syndicate.invitations(eve), 0);
     }
 
     function testDynamicDilutionAndConcentration() public {
@@ -339,17 +354,24 @@ contract SyndicateFactoryTest is ProtocolFixture {
         assertEq(syndicate.pointsOf(alice), 100_000);
         assertEq(syndicate.shareOf(alice), 10_000);
 
-        // Solo Primus proposes Carol at Grade 6 (32 weight) -> Alice holds 100% >= 66.7% -> executes instantly
+        // Solo Primus proposes Carol at Grade 6 (32 weight) -> Alice holds 100% >= 66.7% -> executes invitation
         vm.prank(alice);
         syndicate.proposeAction(Syndicate.ActionType.AddMember, carol, 6);
+        assertEq(syndicate.invitations(carol), 6);
+
+        // Carol accepts invitation onchain
+        vm.prank(carol);
+        syndicate.acceptInvitation();
 
         assertEq(syndicate.totalWeight(), 64);
         assertEq(syndicate.pointsOf(alice), 50_000);
         assertEq(syndicate.pointsOf(carol), 50_000);
 
-        // Bob joins at Grade 2 directly (2 weight)
+        // Bob invited at Grade 2 directly (2 weight)
         vm.prank(alice);
-        syndicate.addMember(bob, 2);
+        syndicate.inviteMember(bob, 2);
+        vm.prank(bob);
+        syndicate.acceptInvitation();
 
         assertEq(syndicate.totalWeight(), 66);
         assertEq(syndicate.pointsOf(alice), (uint256(32) * 100_000) / 66);
@@ -410,5 +432,38 @@ contract SyndicateFactoryTest is ProtocolFixture {
                 memberGrades: new uint8[](0)
             })
         );
+    }
+
+    function testInvitationDeclinedAndCancelled() public {
+        bytes32 draftId = keccak256("syn-invites");
+        SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 0);
+        bytes memory sig = _signVoucher(voucher);
+
+        address clone = factory.createSyndicate(voucher, sig);
+        Syndicate syndicate = Syndicate(clone);
+
+        // 1. Decline flow
+        vm.prank(alice);
+        syndicate.inviteMember(dave, 1);
+        assertEq(syndicate.invitations(dave), 1);
+
+        vm.prank(dave);
+        syndicate.declineInvitation();
+        assertEq(syndicate.invitations(dave), 0);
+        assertFalse(syndicate.isMember(dave));
+
+        // 2. Cancel flow
+        vm.prank(alice);
+        syndicate.inviteMember(dave, 2);
+        assertEq(syndicate.invitations(dave), 2);
+
+        vm.prank(bob);
+        vm.expectRevert("Only primus");
+        syndicate.cancelInvitation(dave);
+
+        vm.prank(alice);
+        syndicate.cancelInvitation(dave);
+        assertEq(syndicate.invitations(dave), 0);
+        assertFalse(syndicate.isMember(dave));
     }
 }

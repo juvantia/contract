@@ -50,6 +50,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
     mapping(address => uint8) public memberGrades;
     address[] public members;
     mapping(address => uint256) private memberIndex;
+    mapping(address => uint8) public invitations; // candidate => grade invited to
 
     uint256 public actionCount;
     mapping(uint256 => GovernanceAction) public actions;
@@ -59,6 +60,10 @@ contract Syndicate is Initializable, ReentrancyGuard {
     event MemberAdded(address indexed member, uint8 grade, uint256 weight);
     event MemberRemoved(address indexed member, uint256 burnedWeight);
     event GradeChanged(address indexed member, uint8 newGrade, uint256 newWeight);
+    event InvitationSent(address indexed invitee, uint8 grade);
+    event InvitationAccepted(address indexed invitee, uint8 grade);
+    event InvitationDeclined(address indexed invitee);
+    event InvitationCancelled(address indexed invitee);
     event OperatingDeposit(address indexed payer, bytes32 indexed referenceId, uint256 amount);
     event OperatingSpent(address indexed recipient, bytes32 indexed referenceId, uint256 amount);
     event ActionProposed(uint256 indexed actionId, ActionType indexed actionType, address indexed target, uint8 grade, address proposer);
@@ -178,10 +183,45 @@ contract Syndicate is Initializable, ReentrancyGuard {
         return Math.mulDiv(memberWeights[member], 10_000, totalWeight);
     }
 
-    /// @notice Add a new member directly if admission threshold is 0 (G1 or G2). Higher grades require action proposal.
-    function addMember(address newMember, uint8 grade) external onlyPrimus {
+    /// @notice Issue an invitation directly if admission threshold is 0 (G1 or G2). Higher grades require action proposal.
+    /// Candidate must accept onchain via acceptInvitation().
+    function inviteMember(address newMember, uint8 grade) public onlyPrimus {
         require(getAdmissionThreshold(grade) == 0, "Higher grades require voting action");
-        _addMember(newMember, grade);
+        require(newMember != address(0) && newMember != address(this), "Invalid address");
+        require(!isMember[newMember], "Already member");
+        require(grade >= 1 && grade <= GRADE_COUNT, "Invalid grade");
+
+        invitations[newMember] = grade;
+        emit InvitationSent(newMember, grade);
+    }
+
+    /// @notice Backward-compatible alias for inviteMember.
+    function addMember(address newMember, uint8 grade) external onlyPrimus {
+        inviteMember(newMember, grade);
+    }
+
+    /// @notice Candidate confirms and accepts the pending invitation with their own onchain transaction/signature.
+    function acceptInvitation() external {
+        uint8 grade = invitations[msg.sender];
+        require(grade > 0, "No pending invitation");
+        delete invitations[msg.sender];
+
+        _addMember(msg.sender, grade);
+        emit InvitationAccepted(msg.sender, grade);
+    }
+
+    /// @notice Candidate explicitly declines the invitation.
+    function declineInvitation() external {
+        require(invitations[msg.sender] > 0, "No pending invitation");
+        delete invitations[msg.sender];
+        emit InvitationDeclined(msg.sender);
+    }
+
+    /// @notice Primus cancels a pending invitation.
+    function cancelInvitation(address invitee) external onlyPrimus {
+        require(invitations[invitee] > 0, "No pending invitation");
+        delete invitations[invitee];
+        emit InvitationCancelled(invitee);
     }
 
     function _addMember(address newMember, uint8 grade) internal {
@@ -381,7 +421,8 @@ contract Syndicate is Initializable, ReentrancyGuard {
         action.executed = true;
 
         if (action.actionType == ActionType.AddMember) {
-            _addMember(action.target, action.grade);
+            invitations[action.target] = action.grade;
+            emit InvitationSent(action.target, action.grade);
         } else if (action.actionType == ActionType.KickMember) {
             _removeMember(action.target);
         } else if (action.actionType == ActionType.ChangeGrade) {
