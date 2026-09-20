@@ -249,4 +249,56 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         consortium.claimFor(bob);
         assertEq(euroToken.balanceOf(bob) - bobBefore, 1_000 ether);
     }
+
+    function testConsortiumSpendingLimitsPackageTwoTiers() public {
+        bytes32 draftId = keccak256("draft-limits-2tier");
+        ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(draftId);
+        bytes memory sig = _signVoucher(voucher);
+
+        (address cClone,) = factory.createConsortium(voucher, sig);
+        Consortium consortium = Consortium(cClone);
+
+        assertEq(consortium.pettyLimit(), 1_000 ether);
+        assertEq(consortium.majorLimit(), 50_000 ether);
+
+        // Alice proposes new limits: petty = 2,500 ether, major = 75,000 ether
+        vm.prank(alice);
+        uint256 pId = consortium.propose(
+            Consortium.ProposalType.SpendingLimitsPackage,
+            abi.encode(uint256(2_500 ether), uint256(75_000 ether))
+        );
+
+        // Alice votes support (60k / 80k = 75% > 50.001%) -> auto-executes
+        vm.prank(alice);
+        consortium.castVote(pId, true);
+
+        assertEq(consortium.pettyLimit(), 2_500 ether);
+        assertEq(consortium.majorLimit(), 75_000 ether);
+    }
+
+    function testConsortiumMajorExpenditureProposal() public {
+        bytes32 draftId = keccak256("draft-major-exp");
+        ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(draftId);
+        bytes memory sig = _signVoucher(voucher);
+
+        (address cClone,) = factory.createConsortium(voucher, sig);
+        Consortium consortium = Consortium(cClone);
+
+        euroToken.approve(cClone, 30_000 ether);
+        consortium.depositOperating(30_000 ether, keccak256("dep-ops"));
+
+        // Alice proposes major spending of 20,000 ether to Carol
+        vm.prank(alice);
+        uint256 pId = consortium.propose(
+            Consortium.ProposalType.MajorExpenditure,
+            abi.encode(carol, uint256(20_000 ether), keccak256("major-ref-1"))
+        );
+
+        // Alice votes support -> auto-executes
+        vm.prank(alice);
+        consortium.castVote(pId, true);
+
+        assertEq(euroToken.balanceOf(carol), 20_000 ether);
+        assertEq(consortium.operatingBalance(), 10_000 ether);
+    }
 }

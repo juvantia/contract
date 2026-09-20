@@ -10,10 +10,12 @@ import {JuvantiaRevenueDistributor} from "./JuvantiaRevenueDistributor.sol";
 contract JuvantiaAssetFabrica is UUPSUpgradeable, OwnableUpgradeable {
     address public immutable assetImplementation;
     JuvantiaRevenueDistributor public revenueDistributor;
+    address public tribunal;
     mapping(bytes32 => address) public assetById;
     address[] public assets;
 
     event AssetCreated(bytes32 indexed assetId, address indexed tokenAddress, address indexed initialOwner, string name);
+    event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
 
     constructor(address implementation) {
         require(implementation.code.length > 0, "Invalid implementation");
@@ -27,12 +29,18 @@ contract JuvantiaAssetFabrica is UUPSUpgradeable, OwnableUpgradeable {
         revenueDistributor = JuvantiaRevenueDistributor(distributor);
     }
 
+    function setTribunal(address newTribunal) external onlyOwner {
+        address old = tribunal;
+        tribunal = newTribunal;
+        emit TribunalSet(old, newTribunal);
+    }
+
     function createAsset(bytes32 assetId, string calldata name, address initialOwner)
         external onlyOwner returns (address clone)
     {
         require(assetId != bytes32(0) && assetById[assetId] == address(0), "Invalid or duplicate asset ID");
         clone = Clones.cloneDeterministic(assetImplementation, assetId);
-        JuvantiaAsset(clone).initialize(name, "APU", initialOwner, owner(), address(revenueDistributor));
+        JuvantiaAsset(clone).initialize(name, "APU", initialOwner, owner(), address(revenueDistributor), tribunal);
         revenueDistributor.registerAsset(clone);
         assetById[assetId] = clone;
         assets.push(clone);

@@ -38,12 +38,14 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
     JuvantiaAerarium public immutable aerarium;
 
     address public authorizer;
+    address public tribunal;
     mapping(bytes32 => bool) public usedDrafts;
     mapping(bytes32 => address) public consortiumById;
     mapping(bytes32 => address) public assetById;
     address[] public consortia;
 
     event AuthorizerSet(address indexed authorizer);
+    event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
     event ConsortiumCreated(
         bytes32 indexed draftId,
         address indexed consortium,
@@ -78,6 +80,12 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         require(newAuthorizer != address(0), "Invalid authorizer");
         authorizer = newAuthorizer;
         emit AuthorizerSet(newAuthorizer);
+    }
+
+    function setTribunal(address newTribunal) external onlyOwner {
+        address old = tribunal;
+        tribunal = newTribunal;
+        emit TribunalSet(old, newTribunal);
     }
 
     function consortiaCount() external view returns (uint256) {
@@ -147,7 +155,8 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
             voucher.symbol,
             address(this),
             owner(),
-            address(revenueDistributor)
+            address(revenueDistributor),
+            tribunal
         );
 
         Consortium(consortiumClone).initialize(
@@ -155,7 +164,8 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
             assetClone,
             address(revenueDistributor),
             voucher.magister,
-            owner()
+            owner(),
+            tribunal
         );
 
         // Register asset in RevenueDistributor with consortium ledger observer FIRST

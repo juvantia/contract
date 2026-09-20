@@ -429,7 +429,9 @@ contract SyndicateFactoryTest is ProtocolFixture {
                 preset: Syndicate.PresetType.DemocraticMass,
                 grades: 6,
                 members: new address[](0),
-                memberGrades: new uint8[](0)
+                memberGrades: new uint8[](0),
+                admin: bob,
+                tribunal: address(0)
             })
         );
     }
@@ -465,5 +467,136 @@ contract SyndicateFactoryTest is ProtocolFixture {
         syndicate.cancelInvitation(dave);
         assertEq(syndicate.invitations(dave), 0);
         assertFalse(syndicate.isMember(dave));
+    }
+
+    function testSyndicateProportionalCollectionSuccess() public {
+        bytes32 draftId = keccak256("syn-col-success");
+        SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 0); // Dominant: Alice=32, Bob=2. Total=34
+        bytes memory sig = _signVoucher(voucher);
+
+        address clone = factory.createSyndicate(voucher, sig);
+        Syndicate syndicate = Syndicate(clone);
+
+        // 1. Primus starts collection for 3,400 EURC
+        bytes32 purpose = keccak256("RobulusPurchase");
+        vm.prank(alice);
+        uint256 colId = syndicate.startCollection(3_400 ether, purpose);
+        assertEq(colId, 1);
+        assertEq(syndicate.activeCollectionId(), 1);
+
+        // Quotas: Alice = 3,200 ether, Bob = 200 ether
+        (uint256 aliceQuota, bool alicePaid, bool aliceRefunded) = syndicate.getMemberQuota(colId, alice);
+        (uint256 bobQuota, bool bobPaid, bool bobRefunded) = syndicate.getMemberQuota(colId, bob);
+        assertEq(aliceQuota, 3_200 ether);
+        assertEq(bobQuota, 200 ether);
+        assertFalse(alicePaid);
+        assertFalse(bobPaid);
+        assertFalse(aliceRefunded);
+        assertFalse(bobRefunded);
+
+        // Cannot start second collection concurrently
+        vm.prank(alice);
+        vm.expectRevert("Active collection in progress");
+        syndicate.startCollection(1_000 ether, purpose);
+
+        // Cannot kick or change grade during active collection
+        vm.prank(alice);
+        vm.expectRevert("Active collection in progress");
+        syndicate.removeMember(bob);
+
+        // Unpaid members before any payment: both Alice and Bob
+        address[] memory unpaid = syndicate.getUnpaidMembers(colId);
+        assertEq(unpaid.length, 2);
+
+        // 2. Bob pays quota
+        deal(address(euroToken), bob, 500 ether);
+        vm.prank(bob);
+        euroToken.approve(clone, 200 ether);
+        vm.prank(bob);
+        syndicate.payQuota(colId);
+
+        (, bobPaid,) = syndicate.getMemberQuota(colId, bob);
+        assertTrue(bobPaid);
+        assertEq(syndicate.lockedCollectionFunds(), 200 ether);
+        assertEq(syndicate.operatingBalance(), 0); // locked funds do not leak to operating
+
+        // Unpaid list now only has Alice
+        unpaid = syndicate.getUnpaidMembers(colId);
+        assertEq(unpaid.length, 1);
+        assertEq(unpaid[0], alice);
+
+        // Bob cannot pay again
+        vm.prank(bob);
+        vm.expectRevert("Quota already paid");
+        syndicate.payQuota(colId);
+
+        // 3. Alice pays quota -> 100% complete!
+        deal(address(euroToken), alice, 5_000 ether);
+        vm.prank(alice);
+        euroToken.approve(clone, 3_200 ether);
+        vm.prank(alice);
+        syndicate.payQuota(colId);
+
+        (, alicePaid,) = syndicate.getMemberQuota(colId, alice);
+        assertTrue(alicePaid);
+
+        // Collection is marked Completed, activeCollectionId reset, funds unlocked into operatingBalance
+        Syndicate.Collection memory col = syndicate.getCollection(colId);
+        assertEq(uint8(col.status), uint8(Syndicate.CollectionStatus.Completed));
+        assertEq(col.collectedAmount, 3_400 ether);
+        assertEq(col.paidCount, 2);
+        assertEq(syndicate.activeCollectionId(), 0);
+        assertEq(syndicate.lockedCollectionFunds(), 0);
+        assertEq(syndicate.operatingBalance(), 3_400 ether);
+    }
+
+    function testSyndicateCollectionCancellationAndRefund() public {
+        bytes32 draftId = keccak256("syn-col-cancel");
+        SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 0);
+        bytes memory sig = _signVoucher(voucher);
+
+        address clone = factory.createSyndicate(voucher, sig);
+        Syndicate syndicate = Syndicate(clone);
+
+        bytes32 purpose = keccak256("DomusExpansion");
+        vm.prank(alice);
+        uint256 colId = syndicate.startCollection(3_400 ether, purpose);
+
+        // Bob pays his quota 200 ether
+        deal(address(euroToken), bob, 500 ether);
+        vm.prank(bob);
+        euroToken.approve(clone, 200 ether);
+        vm.prank(bob);
+        syndicate.payQuota(colId);
+
+        // Alice stalls / doesn't pay. Primus cancels collection
+        vm.prank(bob);
+        vm.expectRevert("Only primus");
+        syndicate.cancelCollection(colId);
+
+        vm.prank(alice);
+        syndicate.cancelCollection(colId);
+
+        Syndicate.Collection memory col = syndicate.getCollection(colId);
+        assertEq(uint8(col.status), uint8(Syndicate.CollectionStatus.Cancelled));
+        assertEq(syndicate.activeCollectionId(), 0);
+
+        // Alice did not pay -> cannot claim refund
+        vm.prank(alice);
+        vm.expectRevert("No payment to refund");
+        syndicate.claimRefund(colId);
+
+        // Bob claims refund
+        uint256 bobBalBefore = euroToken.balanceOf(bob);
+        vm.prank(bob);
+        syndicate.claimRefund(colId);
+
+        assertEq(euroToken.balanceOf(bob), bobBalBefore + 200 ether);
+        assertEq(syndicate.lockedCollectionFunds(), 0);
+
+        // Cannot double refund
+        vm.prank(bob);
+        vm.expectRevert("Already refunded");
+        syndicate.claimRefund(colId);
     }
 }

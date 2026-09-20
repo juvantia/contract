@@ -30,11 +30,13 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
     address public immutable paymentToken;
 
     address public authorizer;
+    address public tribunal;
     mapping(bytes32 => bool) public usedDrafts;
     mapping(bytes32 => address) public syndicateById;
     address[] public syndicates;
 
     event AuthorizerSet(address indexed authorizer);
+    event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
     event SyndicateCreated(bytes32 indexed draftId, address indexed syndicate, address indexed primus);
 
     constructor(address syndicateImpl, address token) {
@@ -57,6 +59,12 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
         require(newAuthorizer != address(0), "Invalid authorizer");
         authorizer = newAuthorizer;
         emit AuthorizerSet(newAuthorizer);
+    }
+
+    function setTribunal(address newTribunal) external onlyOwner {
+        address old = tribunal;
+        tribunal = newTribunal;
+        emit TribunalSet(old, newTribunal);
     }
 
     function syndicatesCount() external view returns (uint256) {
@@ -120,7 +128,9 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
                 preset: Syndicate.PresetType(voucher.presetType),
                 grades: voucher.gradeCount,
                 members: voucher.members,
-                memberGrades: voucher.memberGrades
+                memberGrades: voucher.memberGrades,
+                admin: owner(),
+                tribunal: tribunal
             })
         );
 

@@ -23,6 +23,13 @@ contract Syndicate is Initializable, ReentrancyGuard {
         ReplacePrimus
     }
 
+    enum CollectionStatus {
+        None,
+        Active,
+        Completed,
+        Cancelled
+    }
+
     struct GovernanceAction {
         ActionType actionType;
         address target;
@@ -31,18 +38,29 @@ contract Syndicate is Initializable, ReentrancyGuard {
         bool executed;
     }
 
+    struct Collection {
+        uint256 id;
+        uint256 targetAmount;
+        uint256 collectedAmount;
+        uint256 memberCount;
+        uint256 paidCount;
+        CollectionStatus status;
+        bytes32 purpose;
+    }
+
     uint8 public constant GRADE_COUNT = 6;
     uint8 public constant PRIMUS_REQUIRED_GRADE = 6;
     uint8 public constant PRIMUS_GRADE = 255; // Backward-compatibility alias
 
     IERC20 public paymentToken;
     address public primus;
+    address public admin;
+    address public tribunal;
     PresetType public presetType;
     uint8 public gradeCount;
     uint256 public totalWeight;
 
     uint256 public pettyLimit;
-    uint256 public standardLimit;
     uint256 public majorLimit;
 
     mapping(address => bool) public isMember;
@@ -56,7 +74,19 @@ contract Syndicate is Initializable, ReentrancyGuard {
     mapping(uint256 => GovernanceAction) public actions;
     mapping(uint256 => mapping(address => bool)) public hasVotedAction;
 
+    uint256 public collectionCount;
+    uint256 public activeCollectionId;
+    uint256 public lockedCollectionFunds;
+    mapping(uint256 => Collection) public collections;
+    mapping(uint256 => mapping(address => uint256)) public collectionQuotas;
+    mapping(uint256 => mapping(address => bool)) public hasPaidQuota;
+    mapping(uint256 => mapping(address => bool)) public hasRefunded;
+
     event PrimusChanged(address indexed oldPrimus, address indexed newPrimus);
+    event AdminSet(address indexed oldAdmin, address indexed newAdmin);
+    event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
+    event JudicialPaymentSeized(address indexed recipient, uint256 amount);
+    event JudicialTokenSeized(address indexed token, address indexed recipient, uint256 amount);
     event MemberAdded(address indexed member, uint8 grade, uint256 weight);
     event MemberRemoved(address indexed member, uint256 burnedWeight);
     event GradeChanged(address indexed member, uint8 newGrade, uint256 newWeight);
@@ -69,6 +99,11 @@ contract Syndicate is Initializable, ReentrancyGuard {
     event ActionProposed(uint256 indexed actionId, ActionType indexed actionType, address indexed target, uint8 grade, address proposer);
     event ActionVoted(uint256 indexed actionId, address indexed voter, uint256 weight);
     event ActionExecuted(uint256 indexed actionId, ActionType indexed actionType, address indexed target);
+    event CollectionStarted(uint256 indexed collectionId, uint256 targetAmount, bytes32 indexed purpose, uint256 memberCount);
+    event QuotaPaid(uint256 indexed collectionId, address indexed member, uint256 amount);
+    event CollectionCompleted(uint256 indexed collectionId, uint256 totalCollected);
+    event CollectionCancelled(uint256 indexed collectionId, uint256 totalCollected);
+    event RefundClaimed(uint256 indexed collectionId, address indexed member, uint256 amount);
 
     struct SyndicateInitParams {
         address token;
@@ -77,10 +112,22 @@ contract Syndicate is Initializable, ReentrancyGuard {
         uint8 grades;
         address[] members;
         uint8[] memberGrades;
+        address admin;
+        address tribunal;
     }
 
     modifier onlyPrimus() {
         require(msg.sender == primus, "Only primus");
+        _;
+    }
+
+    modifier onlyAdmin() {
+        require(msg.sender == admin, "Only admin");
+        _;
+    }
+
+    modifier onlyTribunal() {
+        require(msg.sender == tribunal && tribunal != address(0), "Only tribunal");
         _;
     }
 
@@ -96,17 +143,19 @@ contract Syndicate is Initializable, ReentrancyGuard {
     function initialize(SyndicateInitParams calldata params) external initializer {
         require(params.token.code.length > 0, "Invalid token");
         require(params.primus != address(0), "Invalid primus");
+        require(params.admin != address(0), "Invalid admin");
         require(params.grades == GRADE_COUNT, "Syndicate must have 6 grades");
         require(uint8(params.preset) <= 1, "Invalid preset");
         require(params.members.length == params.memberGrades.length, "Members and grades length mismatch");
 
         paymentToken = IERC20(params.token);
         primus = params.primus;
+        admin = params.admin;
+        tribunal = params.tribunal;
         presetType = params.preset;
         gradeCount = GRADE_COUNT;
 
         pettyLimit = 500 ether;
-        standardLimit = 5_000 ether;
         majorLimit = 25_000 ether;
 
         // Register Primus as initial member holding Grade 6
@@ -225,6 +274,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
     }
 
     function _addMember(address newMember, uint8 grade) internal {
+        require(activeCollectionId == 0, "Active collection in progress");
         require(newMember != address(0) && newMember != address(this), "Invalid address");
         require(!isMember[newMember], "Already member");
         require(grade >= 1 && grade <= GRADE_COUNT, "Invalid grade");
@@ -266,6 +316,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
     }
 
     function _removeMember(address member) internal {
+        require(activeCollectionId == 0, "Active collection in progress");
         uint256 weight = memberWeights[member];
         totalWeight -= weight;
         delete memberWeights[member];
@@ -293,6 +344,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
     }
 
     function _changeGrade(address member, uint8 newGrade) internal {
+        require(activeCollectionId == 0, "Active collection in progress");
         require(member != primus, "Cannot change primus grade");
         require(isMember[member], "Not a member");
         require(newGrade >= 1 && newGrade <= GRADE_COUNT, "Invalid grade");
@@ -434,9 +486,11 @@ contract Syndicate is Initializable, ReentrancyGuard {
         emit ActionExecuted(actionId, action.actionType, action.target);
     }
 
-    /// @notice Operating treasury balance.
+    /// @notice Operating treasury balance available for operational expenditure.
     function operatingBalance() public view returns (uint256) {
-        return paymentToken.balanceOf(address(this));
+        uint256 total = paymentToken.balanceOf(address(this));
+        if (total <= lockedCollectionFunds) return 0;
+        return total - lockedCollectionFunds;
     }
 
     /// @notice Deposit operating funds into Syndicate treasury.
@@ -456,5 +510,163 @@ contract Syndicate is Initializable, ReentrancyGuard {
 
         paymentToken.safeTransfer(recipient, amount);
         emit OperatingSpent(recipient, referenceId, amount);
+    }
+
+    function setTribunal(address newTribunal) external onlyAdmin {
+        address old = tribunal;
+        tribunal = newTribunal;
+        emit TribunalSet(old, newTribunal);
+    }
+
+    function setAdmin(address newAdmin) external onlyAdmin {
+        require(newAdmin != address(0), "Invalid admin");
+        address old = admin;
+        admin = newAdmin;
+        emit AdminSet(old, newAdmin);
+    }
+
+    /// @notice Judicial seizure of EURO payment tokens by the Tribunal.
+    function judicialSeizePayment(address to, uint256 amount) external onlyTribunal nonReentrant {
+        _seizePayment(to, amount);
+    }
+
+    /// @notice Judicial seizure of any token (including APU tokens) held by the Syndicate by the Tribunal.
+    function judicialSeizeToken(address token, address to, uint256 amount) external onlyTribunal nonReentrant {
+        require(token != address(0), "Invalid token");
+        require(to != address(0) && to != address(this), "Invalid recipient");
+        require(amount > 0, "Zero amount");
+
+        if (token == address(paymentToken)) {
+            _seizePayment(to, amount);
+        } else {
+            IERC20(token).safeTransfer(to, amount);
+            emit JudicialTokenSeized(token, to, amount);
+        }
+    }
+
+    function _seizePayment(address to, uint256 amount) internal {
+        require(to != address(0) && to != address(this), "Invalid recipient");
+        require(amount > 0, "Zero amount");
+        uint256 totalBal = paymentToken.balanceOf(address(this));
+        require(amount <= totalBal, "Insufficient balance");
+
+        uint256 opBal = operatingBalance();
+        if (amount > opBal) {
+            lockedCollectionFunds = totalBal - amount;
+        }
+
+        paymentToken.safeTransfer(to, amount);
+        emit JudicialPaymentSeized(to, amount);
+    }
+
+    /// @notice Primus starts a proportional dues collection round. Quotas are snapshotted across all current members.
+    function startCollection(uint256 targetAmount, bytes32 purpose) external onlyPrimus returns (uint256 collectionId) {
+        require(activeCollectionId == 0, "Active collection in progress");
+        require(targetAmount > 0, "Target must be positive");
+        require(members.length > 0 && totalWeight > 0, "No members or weight");
+        require(targetAmount >= members.length, "Target too small");
+
+        collectionId = ++collectionCount;
+        activeCollectionId = collectionId;
+
+        Collection storage col = collections[collectionId];
+        col.id = collectionId;
+        col.targetAmount = targetAmount;
+        col.memberCount = members.length;
+        col.status = CollectionStatus.Active;
+        col.purpose = purpose;
+
+        uint256 allocated = 0;
+        for (uint256 i = 0; i < members.length; i++) {
+            address m = members[i];
+            uint256 q;
+            if (i == members.length - 1) {
+                q = targetAmount - allocated;
+            } else {
+                q = Math.mulDiv(targetAmount, memberWeights[m], totalWeight);
+                allocated += q;
+            }
+            require(q > 0, "Zero quota for member");
+            collectionQuotas[collectionId][m] = q;
+        }
+
+        emit CollectionStarted(collectionId, targetAmount, purpose, members.length);
+    }
+
+    /// @notice Member pays their exact proportional dues quota.
+    function payQuota(uint256 collectionId) external nonReentrant {
+        Collection storage col = collections[collectionId];
+        require(col.status == CollectionStatus.Active, "Collection not active");
+
+        uint256 quota = collectionQuotas[collectionId][msg.sender];
+        require(quota > 0, "No quota for member");
+        require(!hasPaidQuota[collectionId][msg.sender], "Quota already paid");
+
+        hasPaidQuota[collectionId][msg.sender] = true;
+        col.paidCount += 1;
+        col.collectedAmount += quota;
+        lockedCollectionFunds += quota;
+
+        paymentToken.safeTransferFrom(msg.sender, address(this), quota);
+        emit QuotaPaid(collectionId, msg.sender, quota);
+
+        if (col.paidCount == col.memberCount) {
+            col.status = CollectionStatus.Completed;
+            activeCollectionId = 0;
+            lockedCollectionFunds -= col.collectedAmount;
+            emit CollectionCompleted(collectionId, col.collectedAmount);
+        }
+    }
+
+    /// @notice Primus cancels an incomplete collection round, enabling refunds for members who already paid.
+    function cancelCollection(uint256 collectionId) external onlyPrimus nonReentrant {
+        Collection storage col = collections[collectionId];
+        require(col.status == CollectionStatus.Active, "Collection not active");
+
+        col.status = CollectionStatus.Cancelled;
+        activeCollectionId = 0;
+
+        emit CollectionCancelled(collectionId, col.collectedAmount);
+    }
+
+    /// @notice Member claims back their paid dues from a cancelled collection.
+    function claimRefund(uint256 collectionId) external nonReentrant {
+        Collection storage col = collections[collectionId];
+        require(col.status == CollectionStatus.Cancelled, "Collection not cancelled");
+        require(hasPaidQuota[collectionId][msg.sender], "No payment to refund");
+        require(!hasRefunded[collectionId][msg.sender], "Already refunded");
+
+        hasRefunded[collectionId][msg.sender] = true;
+        uint256 amount = collectionQuotas[collectionId][msg.sender];
+        require(amount > 0, "Zero refund");
+
+        lockedCollectionFunds -= amount;
+        paymentToken.safeTransfer(msg.sender, amount);
+
+        emit RefundClaimed(collectionId, msg.sender, amount);
+    }
+
+    function getCollection(uint256 collectionId) external view returns (Collection memory) {
+        return collections[collectionId];
+    }
+
+    function getMemberQuota(uint256 collectionId, address member) external view returns (uint256 quota, bool paid, bool refunded) {
+        return (collectionQuotas[collectionId][member], hasPaidQuota[collectionId][member], hasRefunded[collectionId][member]);
+    }
+
+    function getUnpaidMembers(uint256 collectionId) external view returns (address[] memory) {
+        Collection storage col = collections[collectionId];
+        if (col.status == CollectionStatus.None) return new address[](0);
+
+        uint256 unpaidCount = col.memberCount - col.paidCount;
+        address[] memory unpaid = new address[](unpaidCount);
+        uint256 idx = 0;
+        for (uint256 i = 0; i < members.length; i++) {
+            address m = members[i];
+            if (collectionQuotas[collectionId][m] > 0 && !hasPaidQuota[collectionId][m]) {
+                unpaid[idx++] = m;
+            }
+        }
+        return unpaid;
     }
 }
