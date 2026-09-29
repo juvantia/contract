@@ -20,6 +20,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     uint256 public constant PRECISION = 1e36;
     IERC20 public immutable revenueToken;
     JuvantiaAerarium public aerarium;
+    address public tribunal;
 
     mapping(address => bool) public registrars;
     mapping(address => bool) public registeredAssets;
@@ -34,6 +35,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     mapping(address => mapping(address => uint256)) public escrowedBalance;
     mapping(address => mapping(address => mapping(address => uint256))) public escrowPositions;
     mapping(address => address) public checkpointObservers;
+    mapping(address => bool) public encumbered;
 
     mapping(address => mapping(bytes32 => bool)) public paid;
 
@@ -46,6 +48,14 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     event RevenueClaimed(address indexed assetToken, address indexed account, uint256 amount);
     event AerariumSet(address indexed aerarium);
     event PaymentProcessed(bytes32 indexed paymentId, address indexed payer, address indexed assetToken, bytes32 categoryId, uint256 amount, uint256 tax, uint256 net);
+    event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
+    event AccountEncumbered(address indexed account, bool encumbered);
+    event JudicialRevenueClaim(address indexed asset, address indexed from, address indexed to, uint256 amount);
+
+    modifier onlyTribunal() {
+        require(msg.sender == tribunal && tribunal != address(0), "Only tribunal");
+        _;
+    }
 
     constructor(address token, address admin, address treasury) Ownable(admin) {
         require(token.code.length > 0, "Invalid token");
@@ -62,6 +72,23 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         }
         aerarium = JuvantiaAerarium(treasury);
         emit AerariumSet(treasury);
+    }
+
+    function setTribunal(address newTribunal) external onlyOwner {
+        address old = tribunal;
+        tribunal = newTribunal;
+        emit TribunalSet(old, newTribunal);
+    }
+
+    /// @notice Impose or lift encumbrance on an account by judicial decree.
+    function setEncumbrance(address account, bool isEncumbered_) external onlyTribunal {
+        require(account != address(0), "Invalid account");
+        encumbered[account] = isEncumbered_;
+        emit AccountEncumbered(account, isEncumbered_);
+    }
+
+    function isEncumbered(address account) external view returns (bool) {
+        return encumbered[account];
     }
 
     function setRegistrar(address registrar, bool allowed) external onlyOwner {
@@ -224,6 +251,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
 
     function _claimFor(address asset, address account) internal returns (uint256 amount) {
         require(registeredAssets[asset], "Unknown asset");
+        require(!encumbered[account], "Account encumbered");
         _checkpoint(asset, account);
         amount = accrued[asset][account];
         accrued[asset][account] = 0;
@@ -231,6 +259,55 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
             totalClaimed[asset] += amount;
             revenueToken.safeTransfer(account, amount);
             emit RevenueClaimed(asset, account, amount);
+        }
+    }
+
+    /// @notice Seize all accrued revenue of an account by judicial order, transferring funds to recipient.
+    function judicialClaim(address asset, address from, address to) external onlyTribunal nonReentrant returns (uint256 amount) {
+        return _judicialClaim(asset, from, to);
+    }
+
+    /// @notice Seize a specific amount of an account's accrued revenue by judicial order, transferring funds to recipient.
+    function judicialClaim(address asset, address from, address to, uint256 amount) public onlyTribunal nonReentrant returns (uint256) {
+        require(registeredAssets[asset], "Unknown asset");
+        require(from != address(0), "Invalid from");
+        require(to != address(0) && to != address(this), "Invalid to");
+        require(amount > 0, "Zero amount");
+
+        _checkpoint(asset, from);
+        require(accrued[asset][from] >= amount, "Insufficient accrued revenue");
+
+        accrued[asset][from] -= amount;
+        totalClaimed[asset] += amount;
+        revenueToken.safeTransfer(to, amount);
+        emit JudicialRevenueClaim(asset, from, to, amount);
+        return amount;
+    }
+
+    /// @notice Alias for judicialClaim with specific amount.
+    function judicialSeize(address asset, address from, address to, uint256 amount) external onlyTribunal nonReentrant returns (uint256) {
+        return judicialClaim(asset, from, to, amount);
+    }
+
+    /// @notice Batch seizure of all accrued revenue across multiple assets for an account.
+    function judicialClaimBatch(address[] calldata assets, address from, address to) external onlyTribunal nonReentrant returns (uint256 total) {
+        for (uint256 i; i < assets.length; ++i) {
+            total += _judicialClaim(assets[i], from, to);
+        }
+    }
+
+    function _judicialClaim(address asset, address from, address to) internal returns (uint256 amount) {
+        require(registeredAssets[asset], "Unknown asset");
+        require(from != address(0), "Invalid from");
+        require(to != address(0) && to != address(this), "Invalid to");
+
+        _checkpoint(asset, from);
+        amount = accrued[asset][from];
+        accrued[asset][from] = 0;
+        if (amount != 0) {
+            totalClaimed[asset] += amount;
+            revenueToken.safeTransfer(to, amount);
+            emit JudicialRevenueClaim(asset, from, to, amount);
         }
     }
 }

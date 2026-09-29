@@ -52,9 +52,9 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         view
         returns (ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher)
     {
-        address[] memory founders = new address[](2);
-        founders[0] = alice;
-        founders[1] = bob;
+        address[] memory incorporators = new address[](2);
+        incorporators[0] = alice;
+        incorporators[1] = bob;
 
         uint256[] memory shares = new uint256[](2);
         shares[0] = 60_000 ether;
@@ -65,8 +65,8 @@ contract ConsortiumFactoryTest is ProtocolFixture {
             name: "RoboCorp Consortium",
             symbol: "ROBO",
             magister: alice,
-            founders: founders,
-            founderShares: shares,
+            incorporators: incorporators,
+            incorporatorShares: shares,
             treasuryShares: 20_000 ether,
             deadline: block.timestamp + 1 hours,
             salt: draftId

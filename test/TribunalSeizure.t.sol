@@ -95,18 +95,18 @@ contract TribunalSeizureTest is ProtocolFixture {
         cFactory.setTribunal(tribunal);
 
         // Create a consortium
-        address[] memory founders = new address[](1);
-        founders[0] = alice;
-        uint256[] memory founderShares = new uint256[](1);
-        founderShares[0] = 80_000 ether;
+        address[] memory incorporators = new address[](1);
+        incorporators[0] = alice;
+        uint256[] memory incorporatorShares = new uint256[](1);
+        incorporatorShares[0] = 80_000 ether;
 
         ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = ConsortiumFactory.ConsortiumDeploymentVoucher({
             draftId: keccak256("draft-c-1"),
             name: "Alpha Corp",
             symbol: "ALP",
             magister: alice,
-            founders: founders,
-            founderShares: founderShares,
+            incorporators: incorporators,
+            incorporatorShares: incorporatorShares,
             treasuryShares: 20_000 ether,
             deadline: block.timestamp + 1 hours,
             salt: keccak256("salt-c-1")
@@ -228,5 +228,89 @@ contract TribunalSeizureTest is ProtocolFixture {
         syndicate.judicialSeizeToken(address(asset), victim, 3_000 ether);
         assertEq(asset.balanceOf(victim), 3_000 ether);
         assertEq(asset.balanceOf(address(syndicate)), 1_000 ether);
+    }
+
+    // ==========================================
+    // 4. RevenueDistributor: Encumbrance & Seizure
+    // ==========================================
+
+    function testRevenueDistributorEncumbranceAndSeizureByTribunal() public {
+        // Non-owner cannot set tribunal
+        vm.prank(bob);
+        vm.expectRevert();
+        revenue.setTribunal(bob);
+
+        // Owner sets tribunal
+        revenue.setTribunal(tribunal);
+        assertEq(revenue.tribunal(), tribunal);
+
+        // Alice holds 100,000 APU of asset
+        assertEq(asset.balanceOf(alice), 100_000 ether);
+
+        // Distribute 10,000 EUR to asset
+        euroToken.mint(address(this), 10_000 ether);
+        euroToken.approve(address(revenue), 10_000 ether);
+        revenue.distributeRevenue(address(asset), 10_000 ether);
+
+        assertEq(revenue.claimable(address(asset), alice), 10_000 ether);
+
+        // Non-tribunal cannot impose encumbrance
+        vm.prank(bob);
+        vm.expectRevert("Only tribunal");
+        revenue.setEncumbrance(alice, true);
+
+        // Tribunal imposes encumbrance on Alice
+        vm.prank(tribunal);
+        revenue.setEncumbrance(alice, true);
+
+        assertTrue(revenue.encumbered(alice));
+        assertTrue(revenue.isEncumbered(alice));
+
+        // Alice attempts to claim revenue - must revert due to encumbrance
+        vm.prank(alice);
+        vm.expectRevert("Account encumbered");
+        revenue.claim(address(asset));
+
+        // Third party attempt to claim for Alice also fails
+        vm.prank(bob);
+        vm.expectRevert("Account encumbered");
+        revenue.claimFor(address(asset), alice);
+
+        // Non-tribunal cannot execute judicial claim / seizure
+        vm.prank(bob);
+        vm.expectRevert("Only tribunal");
+        revenue.judicialClaim(address(asset), alice, victim, 4_000 ether);
+
+        // Tribunal executes partial judicial claim of 4,000 EUR to victim
+        vm.prank(tribunal);
+        revenue.judicialClaim(address(asset), alice, victim, 4_000 ether);
+
+        assertEq(euroToken.balanceOf(victim), 4_000 ether);
+        assertEq(revenue.claimable(address(asset), alice), 6_000 ether);
+
+        // Tribunal executes full judicial claim of remaining 6,000 EUR using overloaded function
+        vm.prank(tribunal);
+        uint256 seizedRemaining = revenue.judicialClaim(address(asset), alice, victim);
+
+        assertEq(seizedRemaining, 6_000 ether);
+        assertEq(euroToken.balanceOf(victim), 10_000 ether);
+        assertEq(revenue.claimable(address(asset), alice), 0);
+
+        // Tribunal lifts encumbrance
+        vm.prank(tribunal);
+        revenue.setEncumbrance(alice, false);
+
+        assertFalse(revenue.isEncumbered(alice));
+
+        // Distribute another 2,000 EUR; Alice can now claim normally
+        euroToken.mint(address(this), 2_000 ether);
+        euroToken.approve(address(revenue), 2_000 ether);
+        revenue.distributeRevenue(address(asset), 2_000 ether);
+
+        uint256 aliceBefore = euroToken.balanceOf(alice);
+        vm.prank(alice);
+        uint256 claimed = revenue.claim(address(asset));
+        assertEq(claimed, 2_000 ether);
+        assertEq(euroToken.balanceOf(alice), aliceBefore + 2_000 ether);
     }
 }

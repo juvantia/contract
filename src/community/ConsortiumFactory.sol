@@ -21,15 +21,15 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         string name;
         string symbol;
         address magister;
-        address[] founders;
-        uint256[] founderShares;
+        address[] incorporators;
+        uint256[] incorporatorShares;
         uint256 treasuryShares;
         uint256 deadline;
         bytes32 salt;
     }
 
     bytes32 public constant CONSORTIUM_VOUCHER_TYPEHASH = keccak256(
-        "ConsortiumDeploymentVoucher(bytes32 draftId,string name,string symbol,address magister,address[] founders,uint256[] founderShares,uint256 treasuryShares,uint256 deadline,bytes32 salt)"
+        "ConsortiumDeploymentVoucher(bytes32 draftId,string name,string symbol,address magister,address[] incorporators,uint256[] incorporatorShares,uint256 treasuryShares,uint256 deadline,bytes32 salt)"
     );
 
     address public immutable consortiumImplementation;
@@ -111,8 +111,8 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
             keccak256(bytes(voucher.name)),
             keccak256(bytes(voucher.symbol)),
             voucher.magister,
-            _hashAddresses(voucher.founders),
-            _hashUints(voucher.founderShares),
+            _hashAddresses(voucher.incorporators),
+            _hashUints(voucher.incorporatorShares),
             voucher.treasuryShares,
             voucher.deadline,
             voucher.salt
@@ -127,7 +127,7 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         require(block.timestamp <= voucher.deadline, "Voucher expired");
         require(voucher.draftId != bytes32(0), "Invalid draft ID");
         require(!usedDrafts[voucher.draftId], "Draft already used");
-        require(voucher.founders.length == voucher.founderShares.length, "Founders length mismatch");
+        require(voucher.incorporators.length == voucher.incorporatorShares.length, "Incorporators length mismatch");
 
         bytes32 digest = hashVoucher(voucher);
         address recovered = ECDSA.recover(digest, signature);
@@ -137,9 +137,9 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
 
         // Verify total shares = 100,000 ether (JuvantiaAsset.FIXED_SUPPLY)
         uint256 total = voucher.treasuryShares;
-        for (uint256 i = 0; i < voucher.founderShares.length; i++) {
-            require(voucher.founders[i] != address(0), "Invalid founder");
-            total += voucher.founderShares[i];
+        for (uint256 i = 0; i < voucher.incorporatorShares.length; i++) {
+            require(voucher.incorporators[i] != address(0), "Invalid incorporator");
+            total += voucher.incorporatorShares[i];
         }
         require(total == 100_000 ether, "Total shares must equal 100,000 ether");
 
@@ -171,10 +171,10 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         // Register asset in RevenueDistributor with consortium ledger observer FIRST
         revenueDistributor.registerAsset(assetClone, consortiumClone);
 
-        // Distribute founder shares
-        for (uint256 i = 0; i < voucher.founders.length; i++) {
-            if (voucher.founderShares[i] > 0) {
-                IERC20(assetClone).safeTransfer(voucher.founders[i], voucher.founderShares[i]);
+        // Distribute incorporator shares
+        for (uint256 i = 0; i < voucher.incorporators.length; i++) {
+            if (voucher.incorporatorShares[i] > 0) {
+                IERC20(assetClone).safeTransfer(voucher.incorporators[i], voucher.incorporatorShares[i]);
             }
         }
 
