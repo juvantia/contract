@@ -123,12 +123,6 @@ contract Consortium is ConsortiumTreasury {
         uint256 totalBal = paymentToken.balanceOf(address(this));
         require(amount <= totalBal, "Insufficient balance");
 
-        uint256 opBal = operatingBalance();
-        if (amount > opBal) {
-            uint256 excess = amount - opBal;
-            distributablePool -= excess;
-        }
-
         paymentToken.safeTransfer(to, amount);
         emit JudicialPaymentSeized(to, amount);
     }
@@ -152,11 +146,6 @@ contract Consortium is ConsortiumTreasury {
         if (token == address(paymentToken)) {
             uint256 totalBal = paymentToken.balanceOf(address(this));
             require(amount <= totalBal, "Insufficient balance");
-            uint256 opBal = operatingBalance();
-            if (amount > opBal) {
-                uint256 excess = amount - opBal;
-                distributablePool -= excess;
-            }
             paymentToken.safeTransfer(to, amount);
             emit JudicialPaymentSeized(to, amount);
         } else if (token == address(shareToken)) {

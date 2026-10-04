@@ -160,7 +160,7 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
                 tribunal
             );
 
-        // Register asset in RevenueDistributor with consortium ledger observer FIRST
+        // Bind the Consortium treasury before distributing shares; its reserve never earns revenue.
         revenueDistributor.registerAsset(assetClone, consortiumClone);
 
         // Distribute incorporator shares

@@ -6,6 +6,7 @@ import {ConsortiumFactory} from "../src/community/ConsortiumFactory.sol";
 import {Consortium} from "../src/community/Consortium.sol";
 import {JuvantiaAsset} from "../src/JuvantiaAsset.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 contract ConsortiumFactoryTest is ProtocolFixture {
     ConsortiumFactory internal factory;
@@ -14,6 +15,78 @@ contract ConsortiumFactoryTest is ProtocolFixture {
 
     uint256 internal authorizerPrivateKey = 0xA11CE_516;
     address internal authorizer;
+
+    function testOwnerAllocationRequiresVoteThreshold() public {
+        ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("allocation-threshold"));
+        (address cClone, address token) = factory.createConsortium(voucher, _signVoucher(voucher));
+        Consortium consortium = Consortium(cClone);
+        euroToken.approve(cClone, 1_000 ether);
+        consortium.depositOperating(1_000 ether, keccak256("operating-funds"));
+        vm.prank(bob);
+        uint256 proposal = consortium.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(800 ether));
+        vm.prank(bob);
+        consortium.castVote(proposal, true);
+        assertEq(consortium.distributablePool(), 0);
+        assertEq(consortium.operatingBalance(), 1_000 ether);
+        assertEq(revenue.claimable(token, alice), 0);
+        vm.prank(alice);
+        consortium.castVote(proposal, true);
+        assertEq(consortium.operatingBalance(), 200 ether);
+        assertEq(consortium.distributablePool(), 800 ether);
+        assertEq(revenue.claimFor(token, alice), 600 ether);
+        assertEq(revenue.claimFor(token, bob), 200 ether);
+    }
+
+    function testFundingFailureRollsBackVoteAndCanBeRetried() public {
+        ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("allocation-retry"));
+        (address cClone,) = factory.createConsortium(voucher, _signVoucher(voucher));
+        Consortium consortium = Consortium(cClone);
+        euroToken.approve(cClone, 1_000 ether);
+        consortium.depositOperating(1_000 ether, keccak256("operating-funds"));
+        vm.prank(alice);
+        uint256 proposal = consortium.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(800 ether));
+        vm.mockCall(
+            address(euroToken),
+            abi.encodeCall(IERC20.transferFrom, (cClone, address(revenue), 800 ether)),
+            abi.encode(true)
+        );
+        vm.prank(alice);
+        vm.expectRevert("Incorrect deposit");
+        consortium.castVote(proposal, true);
+        assertFalse(consortium.hasVoted(proposal, alice));
+        (,,,, uint256 forVotes,, bool executed,) = consortium.proposals(proposal);
+        assertEq(forVotes, 0);
+        assertFalse(executed);
+        assertEq(consortium.totalAllocated(), 0);
+        assertEq(consortium.operatingBalance(), 1_000 ether);
+        vm.clearMockedCalls();
+        vm.prank(alice);
+        consortium.castVote(proposal, true);
+        assertEq(consortium.distributablePool(), 800 ether);
+    }
+
+    function testOperatingSeizureCannotTouchOwnersReserve() public {
+        factory.setTribunal(address(this));
+        ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("separate-reserve"));
+        (address cClone, address token) = factory.createConsortium(voucher, _signVoucher(voucher));
+        Consortium consortium = Consortium(cClone);
+        euroToken.approve(cClone, 1_000 ether);
+        consortium.depositOperating(1_000 ether, keccak256("operating-funds"));
+        vm.prank(alice);
+        uint256 proposal = consortium.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(800 ether));
+        vm.prank(alice);
+        consortium.castVote(proposal, true);
+        vm.expectRevert("Insufficient balance");
+        consortium.judicialSeizePayment(carol, 201 ether);
+        vm.expectRevert("Insufficient balance");
+        consortium.judicialSeizeToken(address(euroToken), carol, 201 ether);
+        consortium.judicialSeizePayment(carol, 200 ether);
+        assertEq(consortium.operatingBalance(), 0);
+        assertEq(consortium.distributablePool(), 800 ether);
+        assertEq(revenue.claimFor(token, alice), 600 ether);
+        assertEq(revenue.claimFor(token, bob), 200 ether);
+        assertEq(consortium.distributablePool(), 0);
+    }
 
     function setUp() public override {
         super.setUp();
@@ -225,15 +298,17 @@ contract ConsortiumFactoryTest is ProtocolFixture {
 
         assertEq(consortium.distributablePool(), 4_000 ether);
         assertEq(consortium.operatingBalance(), 6_000 ether);
+        assertEq(euroToken.balanceOf(cClone), 6_000 ether);
+        assertEq(euroToken.balanceOf(address(revenue)), 4_000 ether);
 
         // Alice (60k/80k = 75%) claims 3,000 ether
         uint256 aliceBefore = euroToken.balanceOf(alice);
-        consortium.claimFor(alice);
+        revenue.claimFor(address(consortium.shareToken()), alice);
         assertEq(euroToken.balanceOf(alice) - aliceBefore, 3_000 ether);
 
         // Bob (20k/80k = 25%) claims 1,000 ether
         uint256 bobBefore = euroToken.balanceOf(bob);
-        consortium.claimFor(bob);
+        revenue.claimFor(address(consortium.shareToken()), bob);
         assertEq(euroToken.balanceOf(bob) - bobBefore, 1_000 ether);
     }
 

@@ -6,7 +6,7 @@ import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol
 import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
-import {IAssetCheckpointObserver} from "./interfaces/IAssetCheckpointObserver.sol";
+import {IRevenueTreasury} from "./interfaces/IRevenueTreasury.sol";
 import {JuvantiaAerarium} from "./JuvantiaAerarium.sol";
 
 interface IRevenueAsset is IERC20 {
@@ -34,7 +34,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     mapping(address => mapping(address => uint256)) public escrowedFor;
     mapping(address => mapping(address => uint256)) public escrowedBalance;
     mapping(address => mapping(address => mapping(address => uint256))) public escrowPositions;
-    mapping(address => address) public checkpointObservers;
+    mapping(address => address) public revenueTreasuries;
     mapping(address => bool) public encumbered;
 
     mapping(address => mapping(bytes32 => bool)) public paid;
@@ -47,7 +47,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
 
     event RegistrarSet(address indexed registrar, bool allowed);
     event AssetRegistered(address indexed asset);
-    event CheckpointObserverRegistered(address indexed asset, address indexed observer);
+    event RevenueTreasuryRegistered(address indexed asset, address indexed treasury);
     event EscrowSet(address indexed escrow, bool allowed);
     event EscrowPositionChanged(
         address indexed asset, address indexed escrow, address indexed holder, uint256 amount, bool deposited
@@ -122,25 +122,23 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         _registerAsset(asset, address(0));
     }
 
-    /// @notice A factory may bind a treasury ledger once, atomically with asset registration.
-    function registerAsset(address asset, address observer) external {
-        require(observer.code.length > 0, "Invalid observer");
-        require(IAssetCheckpointObserver(observer).shareToken() == asset, "Observer asset mismatch");
-        require(
-            IAssetCheckpointObserver(observer).revenueDistributor() == address(this), "Observer distributor mismatch"
-        );
-        _registerAsset(asset, observer);
+    /// @notice A factory binds the treasury whose own shares never earn revenue, once at registration.
+    function registerAsset(address asset, address treasury) external {
+        require(treasury.code.length > 0, "Invalid treasury");
+        require(IRevenueTreasury(treasury).shareToken() == asset, "Treasury asset mismatch");
+        require(IRevenueTreasury(treasury).revenueDistributor() == address(this), "Treasury distributor mismatch");
+        _registerAsset(asset, treasury);
     }
 
-    function _registerAsset(address asset, address observer) internal {
+    function _registerAsset(address asset, address treasury) internal {
         require(registrars[msg.sender], "Not registrar");
         require(!registeredAssets[asset], "Already registered");
         require(IRevenueAsset(asset).revenueDistributor() == address(this), "Missing transfer hook");
         require(IERC20(asset).totalSupply() == 100_000 ether, "Invalid supply");
         registeredAssets[asset] = true;
-        checkpointObservers[asset] = observer;
+        revenueTreasuries[asset] = treasury;
         emit AssetRegistered(asset);
-        if (observer != address(0)) emit CheckpointObserverRegistered(asset, observer);
+        if (treasury != address(0)) emit RevenueTreasuryRegistered(asset, treasury);
     }
 
     function setEscrow(address escrow, bool allowed) external onlyOwner {
@@ -152,6 +150,18 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     /// @notice Escrowed shares accrue to their seller until sold, rather than to the marketplace.
     function effectiveBalanceOf(address asset, address account) public view returns (uint256) {
         return IERC20(asset).balanceOf(account) + escrowedFor[asset][account] - escrowedBalance[asset][account];
+    }
+
+    /// @notice Shares entitled to revenue; a Consortium's attributed treasury reserve is excluded.
+    function revenueBalanceOf(address asset, address account) public view returns (uint256) {
+        if (account == revenueTreasuries[asset]) return 0;
+        return effectiveBalanceOf(asset, account);
+    }
+
+    function revenueSupply(address asset) public view returns (uint256) {
+        address treasury = revenueTreasuries[asset];
+        uint256 supply = IERC20(asset).totalSupply();
+        return treasury == address(0) ? supply : supply - effectiveBalanceOf(asset, treasury);
     }
 
     /// @dev Trusted escrow calls after it receives shares; exact physical custody is enforced.
@@ -179,7 +189,9 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     }
 
     function _distribute(address asset, uint256 amount, address source) internal {
-        uint256 increment = Math.mulDiv(amount, PRECISION, IERC20(asset).totalSupply());
+        uint256 supply = revenueSupply(asset);
+        require(supply > 0, "No circulating shares");
+        uint256 increment = Math.mulDiv(amount, PRECISION, supply);
         require(increment > 0, "Amount too small");
         cumulativeIndex[asset] += increment;
         totalDistributed[asset] += amount;
@@ -252,19 +264,16 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
 
     function claimable(address asset, address account) public view returns (uint256) {
         uint256 delta = cumulativeIndex[asset] - claimedIndex[asset][account];
-        uint256 balance = effectiveBalanceOf(asset, account);
+        uint256 balance = revenueBalanceOf(asset, account);
         return accrued[asset][account] + tradeProceeds[asset][account] + Math.mulDiv(balance, delta, PRECISION)
             + (mulmod(balance, delta, PRECISION) + remainder[asset][account]) / PRECISION;
     }
 
     function _checkpoint(address asset, address account) internal {
-        // Independent treasury distributions can change even if this ledger's index did not.
-        address observer = checkpointObservers[asset];
-        if (observer != address(0)) IAssetCheckpointObserver(observer).checkpointAccount(account);
         uint256 index = cumulativeIndex[asset];
         uint256 delta = index - claimedIndex[asset][account];
         if (delta == 0) return;
-        uint256 balance = effectiveBalanceOf(asset, account);
+        uint256 balance = revenueBalanceOf(asset, account);
         uint256 fractional = mulmod(balance, delta, PRECISION) + remainder[asset][account];
         accrued[asset][account] += Math.mulDiv(balance, delta, PRECISION) + fractional / PRECISION;
         remainder[asset][account] = fractional % PRECISION;

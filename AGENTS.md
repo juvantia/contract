@@ -38,15 +38,15 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
 | **`JuvantiaAerarium.sol`** | Central treasury & tax catalog | Central tax registry (per-category basis points catalog) and owner-authorized spending with onchain purpose logging. |
 | **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
-| **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Segregated operating/dividend funds, treasury-share exclusion and transfer/escrow-aware dividends. Not a complete Consortium contract. |
+| **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Operating custody and governed allocation of owners' revenue earnings into RevenueDistributor; read-only views of its distributed reserve. |
 
 Consortium governance/Tribunal gate, Syndicate governance/points and both factories remain required. `ConsortiumTreasuryHarness` is test-only and must never be deployed as a production governance substitute.
 
 ### 4. Consortium Ledger Integration
 
-A factory may register a fixed-supply `JuvantiaAsset` with a one-time `IAssetCheckpointObserver`. The RevenueDistributor validates the observer's share token and distributor, then calls it before every economic-ownership change, including escrow deposits/withdrawals. The observer cannot be rebound after asset registration. Ordinary device assets retain the existing observer-free registration path.
+A factory registers a Consortium's fixed-supply `JuvantiaAsset` with its one-time `IRevenueTreasury` binding. RevenueDistributor validates the treasury's share token and distributor. It excludes attributed treasury shares from the earning balance and distribution denominator, including shares listed in marketplace escrow. Registration cannot be rebound. Ordinary device assets retain their full-supply revenue basis.
 
-The Consortium dividend pool is reserved explicitly. `operatingBalance()` derives euro-token custody minus that reserve, so direct ERC-20 payments and permissionless device `claimFor` receipts become operating funds immediately without an indexer or keeper. Allocations and spending are internal until governed Consortium wrappers are implemented. Treasury shares remain non-dividend-bearing while attributed to the company in TradeHub escrow; sold shares earn only subsequent dividends.
+An approved revenue-distribution proposal transfers the exact allocated amount from Consortium operating custody into RevenueDistributor. The second account (`distributablePool`) is a read-only view of pooled revenue minus payouts in that vault. Consortium has no owner payout entry points or secondary accrual ledger. `operatingBalance()` is its actual euro-token custody, so direct ERC-20 payments and device/trade `claimFor` receipts become operating funds immediately. Owners claim through the distributor's existing `claim`/`claimFor`/`claimBatch` with central encumbrance and judicial seizure. Use **owners' revenue earnings** throughout code, documentation and public API. Treasury shares begin earning only after sale; transfer checkpoints preserve previously earned amounts.
 
 ### 4a. Unified Trade Proceeds Settlement
 
