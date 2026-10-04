@@ -27,7 +27,8 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
     mapping(uint256 => Order) public orders;
     uint256 public nextOrderId;
 
-    mapping(address => uint256) public pendingWithdrawals;
+    // Reserved legacy UUPS storage slot. New proceeds are held only by the distributor.
+    mapping(address => uint256) private _deprecatedPendingWithdrawals;
 
     event OrderCreated(
         uint256 indexed orderId,
@@ -38,7 +39,6 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
     );
     event OrderFilled(uint256 indexed orderId, address indexed buyer, uint256 amount, uint256 totalCost);
     event OrderCancelled(uint256 indexed orderId);
-    event Withdrawal(address indexed seller, uint256 amount);
 
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
@@ -107,10 +107,13 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         }
 
         // Transfer currency from buyer to JuvantiaTradeHub (requires prior approval)
+        uint256 beforeBalance = currencyToken.balanceOf(address(this));
         currencyToken.safeTransferFrom(msg.sender, address(this), totalCost);
+        require(currencyToken.balanceOf(address(this)) - beforeBalance == totalCost, "Incorrect payment");
 
-        // Credit the seller's internal balance
-        pendingWithdrawals[order.seller] += totalCost;
+        // Forward exact proceeds atomically; only the seller may receive this credit.
+        currencyToken.forceApprove(address(revenueDistributor), totalCost);
+        revenueDistributor.depositTradeProceeds(order.assetToken, order.seller, totalCost);
 
         // Transfer asset tokens to buyer
         revenueDistributor.escrowWithdraw(order.assetToken, order.seller, amount);
@@ -138,18 +141,8 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         emit OrderCancelled(orderId);
     }
 
-    /**
-     * @dev Sellers withdraw their accumulated currency.
-     */
-    function withdraw() external nonReentrant {
-        uint256 amount = pendingWithdrawals[msg.sender];
-        require(amount > 0, "No funds to withdraw");
-
-        pendingWithdrawals[msg.sender] = 0;
-
-        // Transfer accumulated currency to the seller
-        currencyToken.safeTransfer(msg.sender, amount);
-
-        emit Withdrawal(msg.sender, amount);
+    /// @notice Compatibility view; payouts use RevenueDistributor.claim/claimBatch exclusively.
+    function pendingWithdrawals(address account) external view returns (uint256) {
+        return revenueDistributor.pendingTradeProceeds(account);
     }
 }

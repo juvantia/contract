@@ -34,8 +34,8 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | :--- | :--- | :--- |
 | **`JuvantiaAssetFabrica.sol`** | UUPS Upgradeable Proxy | Asset Factory entry point. Deploys and registers new `JuvantiaAsset` tokens, managing parent-child asset hierarchy (`parentAsset`, `subAssets`, `createSubAsset`). |
 | **`JuvantiaAsset.sol`** | EIP-1167 Cloneable ERC-20 | Standard RWA asset token contract (18 decimal places, 100,000 total supply per asset). |
-| **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; unsold shares retain their seller's revenue rights. |
-| **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, unified atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
+| **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; forwards seller proceeds atomically to RevenueDistributor and has no withdrawal method. Unsold shares retain their seller's revenue rights. |
+| **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
 | **`JuvantiaAerarium.sol`** | Central treasury & tax catalog | Central tax registry (per-category basis points catalog) and owner-authorized spending with onchain purpose logging. |
 | **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Segregated operating/dividend funds, treasury-share exclusion and transfer/escrow-aware dividends. Not a complete Consortium contract. |
@@ -47,6 +47,10 @@ Consortium governance/Tribunal gate, Syndicate governance/points and both factor
 A factory may register a fixed-supply `JuvantiaAsset` with a one-time `IAssetCheckpointObserver`. The RevenueDistributor validates the observer's share token and distributor, then calls it before every economic-ownership change, including escrow deposits/withdrawals. The observer cannot be rebound after asset registration. Ordinary device assets retain the existing observer-free registration path.
 
 The Consortium dividend pool is reserved explicitly. `operatingBalance()` derives euro-token custody minus that reserve, so direct ERC-20 payments and permissionless device `claimFor` receipts become operating funds immediately without an indexer or keeper. Allocations and spending are internal until governed Consortium wrappers are implemented. Treasury shares remain non-dividend-bearing while attributed to the company in TradeHub escrow; sold shares earn only subsequent dividends.
+
+### 4a. Unified Trade Proceeds Settlement
+
+All executed TradeHub payments are held and paid by RevenueDistributor. Registered escrows may call `depositTradeProceeds` only with an exact funded deposit. The full amount belongs to the seller and never changes `cumulativeIndex` or incurs a trading tax. `claimable`, `claim`, `claimFor`, `claimBatch`, encumbrance and judicial seizure include these addressed proceeds, even after all shares have been sold. Yield and trade audit totals remain separate; `RevenueClaimed` records the combined payout. TradeHub's `pendingWithdrawals` is a read-only compatibility view over the distributor's aggregate trade balance, and its deprecated mapping slot is reserved for UUPS layout compatibility. Historical balances are not migrated automatically. See [settlement details](REVENUE_SETTLEMENT.md).
 
 ### 5. Multi-Model Tribunal & Judicial Encumbrance Architecture
 

@@ -39,6 +39,12 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
 
     mapping(address => mapping(bytes32 => bool)) public paid;
 
+    // Addressed trade proceeds never enter the asset's reward-per-share index.
+    mapping(address => mapping(address => uint256)) public tradeProceeds;
+    mapping(address => uint256) public pendingTradeProceeds;
+    mapping(address => uint256) public totalTradeDeposited;
+    mapping(address => uint256) public totalTradeClaimed;
+
     event RegistrarSet(address indexed registrar, bool allowed);
     event AssetRegistered(address indexed asset);
     event CheckpointObserverRegistered(address indexed asset, address indexed observer);
@@ -63,6 +69,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
     event AccountEncumbered(address indexed account, bool encumbered);
     event JudicialRevenueClaim(address indexed asset, address indexed from, address indexed to, uint256 amount);
+    event TradeProceedsDeposited(address indexed asset, address indexed escrow, address indexed seller, uint256 amount);
 
     modifier onlyTribunal() {
         require(msg.sender == tribunal && tribunal != address(0), "Only tribunal");
@@ -189,6 +196,20 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         _distribute(asset, amount, msg.sender);
     }
 
+    /// @notice A trusted marketplace funds proceeds belonging entirely to its seller, without tax or redistribution.
+    function depositTradeProceeds(address asset, address seller, uint256 amount) external nonReentrant {
+        require(escrows[msg.sender] && registeredAssets[asset], "Invalid escrow asset");
+        require(seller != address(0) && seller != address(this) && seller != msg.sender, "Invalid seller");
+        require(amount > 0, "Zero amount");
+        uint256 beforeBalance = revenueToken.balanceOf(address(this));
+        revenueToken.safeTransferFrom(msg.sender, address(this), amount);
+        require(revenueToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
+        tradeProceeds[asset][seller] += amount;
+        pendingTradeProceeds[seller] += amount;
+        totalTradeDeposited[asset] += amount;
+        emit TradeProceedsDeposited(asset, msg.sender, seller, amount);
+    }
+
     /// @notice Universal payment processing: collects gross amount, deducts city tax to Aerarium, distributes net to shareholders, and emits receipt.
     function processPayment(address asset, uint256 amount, bytes32 categoryId, bytes32 paymentId)
         external
@@ -232,7 +253,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     function claimable(address asset, address account) public view returns (uint256) {
         uint256 delta = cumulativeIndex[asset] - claimedIndex[asset][account];
         uint256 balance = effectiveBalanceOf(asset, account);
-        return accrued[asset][account] + Math.mulDiv(balance, delta, PRECISION)
+        return accrued[asset][account] + tradeProceeds[asset][account] + Math.mulDiv(balance, delta, PRECISION)
             + (mulmod(balance, delta, PRECISION) + remainder[asset][account]) / PRECISION;
     }
 
@@ -269,12 +290,24 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         require(registeredAssets[asset], "Unknown asset");
         require(!encumbered[account], "Account encumbered");
         _checkpoint(asset, account);
-        amount = accrued[asset][account];
-        accrued[asset][account] = 0;
+        amount = accrued[asset][account] + tradeProceeds[asset][account];
         if (amount != 0) {
-            totalClaimed[asset] += amount;
+            _consumeRevenue(asset, account, amount);
             revenueToken.safeTransfer(account, amount);
             emit RevenueClaimed(asset, account, amount);
+        }
+    }
+
+    /// @dev Consume yield first, then addressed proceeds; keep the two audit totals independent.
+    function _consumeRevenue(address asset, address account, uint256 amount) internal {
+        uint256 yieldAmount = Math.min(accrued[asset][account], amount);
+        accrued[asset][account] -= yieldAmount;
+        totalClaimed[asset] += yieldAmount;
+        uint256 proceedsAmount = amount - yieldAmount;
+        if (proceedsAmount != 0) {
+            tradeProceeds[asset][account] -= proceedsAmount;
+            pendingTradeProceeds[account] -= proceedsAmount;
+            totalTradeClaimed[asset] += proceedsAmount;
         }
     }
 
@@ -295,16 +328,19 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256)
     {
+        return _judicialClaim(asset, from, to, amount);
+    }
+
+    function _judicialClaim(address asset, address from, address to, uint256 amount) internal returns (uint256) {
         require(registeredAssets[asset], "Unknown asset");
         require(from != address(0), "Invalid from");
         require(to != address(0) && to != address(this), "Invalid to");
         require(amount > 0, "Zero amount");
 
         _checkpoint(asset, from);
-        require(accrued[asset][from] >= amount, "Insufficient accrued revenue");
+        require(accrued[asset][from] + tradeProceeds[asset][from] >= amount, "Insufficient accrued revenue");
 
-        accrued[asset][from] -= amount;
-        totalClaimed[asset] += amount;
+        _consumeRevenue(asset, from, amount);
         revenueToken.safeTransfer(to, amount);
         emit JudicialRevenueClaim(asset, from, to, amount);
         return amount;
@@ -317,7 +353,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         nonReentrant
         returns (uint256)
     {
-        return judicialClaim(asset, from, to, amount);
+        return _judicialClaim(asset, from, to, amount);
     }
 
     /// @notice Batch seizure of all accrued revenue across multiple assets for an account.
@@ -338,10 +374,9 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         require(to != address(0) && to != address(this), "Invalid to");
 
         _checkpoint(asset, from);
-        amount = accrued[asset][from];
-        accrued[asset][from] = 0;
+        amount = accrued[asset][from] + tradeProceeds[asset][from];
         if (amount != 0) {
-            totalClaimed[asset] += amount;
+            _consumeRevenue(asset, from, amount);
             revenueToken.safeTransfer(to, amount);
             emit JudicialRevenueClaim(asset, from, to, amount);
         }

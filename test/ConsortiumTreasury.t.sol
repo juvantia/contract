@@ -41,10 +41,6 @@ contract ConsortiumTreasuryHarness is ConsortiumTreasury {
         shareToken.approve(address(hub), amount);
         return hub.createOrder(address(shareToken), amount, 1 ether);
     }
-
-    function withdrawProceeds(JuvantiaTradeHub hub) external authorized {
-        hub.withdraw();
-    }
 }
 
 contract ConsortiumTreasuryTest is ProtocolFixture {
@@ -178,7 +174,7 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         vm.prank(bob);
         hub.fillOrder(order, 1_000 ether);
         assertEq(company.circulatingSupply(), 81_000 ether);
-        company.withdrawProceeds(hub);
+        assertEq(revenue.claimFor(address(shares), address(company)), 1_000 ether);
         assertEq(company.operatingBalance(), 1_920 ether);
         company.allocate(81 ether);
         assertEq(company.claimFor(alice), 120 ether);
