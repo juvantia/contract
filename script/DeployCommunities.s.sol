@@ -25,28 +25,27 @@ contract DeployCommunities is Script {
 
         // Deploy Consortium implementation and UUPS Factory
         Consortium consortiumImpl = new Consortium();
-        ConsortiumFactory consortiumFactoryImpl = new ConsortiumFactory(
-            address(consortiumImpl),
-            assetImpl,
-            revenueAddress,
-            aerariumAddress
+        ConsortiumFactory consortiumFactoryImpl =
+            new ConsortiumFactory(address(consortiumImpl), assetImpl, revenueAddress, aerariumAddress);
+        ConsortiumFactory consortiumFactory = ConsortiumFactory(
+            address(
+                new ERC1967Proxy(
+                    address(consortiumFactoryImpl), abi.encodeCall(ConsortiumFactory.initialize, (deployer, authorizer))
+                )
+            )
         );
-        ConsortiumFactory consortiumFactory = ConsortiumFactory(address(new ERC1967Proxy(
-            address(consortiumFactoryImpl),
-            abi.encodeCall(ConsortiumFactory.initialize, (deployer, authorizer))
-        )));
         JuvantiaRevenueDistributor(revenueAddress).setRegistrar(address(consortiumFactory), true);
 
         // Deploy Syndicate implementation and UUPS Factory
         Syndicate syndicateImpl = new Syndicate();
-        SyndicateFactory syndicateFactoryImpl = new SyndicateFactory(
-            address(syndicateImpl),
-            euroToken
+        SyndicateFactory syndicateFactoryImpl = new SyndicateFactory(address(syndicateImpl), euroToken);
+        SyndicateFactory syndicateFactory = SyndicateFactory(
+            address(
+                new ERC1967Proxy(
+                    address(syndicateFactoryImpl), abi.encodeCall(SyndicateFactory.initialize, (deployer, authorizer))
+                )
+            )
         );
-        SyndicateFactory syndicateFactory = SyndicateFactory(address(new ERC1967Proxy(
-            address(syndicateFactoryImpl),
-            abi.encodeCall(SyndicateFactory.initialize, (deployer, authorizer))
-        )));
 
         address tribunalAddress = vm.envOr("TRIBUNAL_ADDRESS", address(0));
         if (tribunalAddress != address(0)) {

@@ -12,7 +12,10 @@ import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
 
 contract TestEuroToken is ERC20 {
     constructor() ERC20("Test Euro", "EURO") {}
-    function mint(address to, uint256 amount) external { _mint(to, amount); }
+
+    function mint(address to, uint256 amount) external {
+        _mint(to, amount);
+    }
 }
 
 abstract contract ProtocolFixture is Test {
@@ -32,8 +35,14 @@ abstract contract ProtocolFixture is Test {
         revenue = new JuvantiaRevenueDistributor(address(euroToken), address(this), address(aerarium));
         JuvantiaAsset implementation = new JuvantiaAsset();
         JuvantiaAssetFabrica factoryImpl = new JuvantiaAssetFabrica(address(implementation));
-        fabrica = JuvantiaAssetFabrica(address(new ERC1967Proxy(address(factoryImpl),
-            abi.encodeCall(JuvantiaAssetFabrica.initialize, (address(this), address(revenue))))));
+        fabrica = JuvantiaAssetFabrica(
+            address(
+                new ERC1967Proxy(
+                    address(factoryImpl),
+                    abi.encodeCall(JuvantiaAssetFabrica.initialize, (address(this), address(revenue)))
+                )
+            )
+        );
         revenue.setRegistrar(address(fabrica), true);
         asset = JuvantiaAsset(fabrica.createAsset(keccak256("asset-1"), "Robulus", alice));
         services = new JuvantiaServicePayments(address(euroToken));

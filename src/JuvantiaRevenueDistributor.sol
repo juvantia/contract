@@ -43,11 +43,23 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     event AssetRegistered(address indexed asset);
     event CheckpointObserverRegistered(address indexed asset, address indexed observer);
     event EscrowSet(address indexed escrow, bool allowed);
-    event EscrowPositionChanged(address indexed asset, address indexed escrow, address indexed holder, uint256 amount, bool deposited);
-    event RevenueDistributed(address indexed assetToken, address indexed source, uint256 amount, uint256 cumulativeIndex);
+    event EscrowPositionChanged(
+        address indexed asset, address indexed escrow, address indexed holder, uint256 amount, bool deposited
+    );
+    event RevenueDistributed(
+        address indexed assetToken, address indexed source, uint256 amount, uint256 cumulativeIndex
+    );
     event RevenueClaimed(address indexed assetToken, address indexed account, uint256 amount);
     event AerariumSet(address indexed aerarium);
-    event PaymentProcessed(bytes32 indexed paymentId, address indexed payer, address indexed assetToken, bytes32 categoryId, uint256 amount, uint256 tax, uint256 net);
+    event PaymentProcessed(
+        bytes32 indexed paymentId,
+        address indexed payer,
+        address indexed assetToken,
+        bytes32 categoryId,
+        uint256 amount,
+        uint256 tax,
+        uint256 net
+    );
     event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
     event AccountEncumbered(address indexed account, bool encumbered);
     event JudicialRevenueClaim(address indexed asset, address indexed from, address indexed to, uint256 amount);
@@ -68,7 +80,9 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
 
     function setAerarium(address treasury) external onlyOwner {
         if (treasury != address(0)) {
-            require(address(JuvantiaAerarium(treasury).revenueToken()) == address(revenueToken), "Treasury token mismatch");
+            require(
+                address(JuvantiaAerarium(treasury).revenueToken()) == address(revenueToken), "Treasury token mismatch"
+            );
         }
         aerarium = JuvantiaAerarium(treasury);
         emit AerariumSet(treasury);
@@ -105,7 +119,9 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     function registerAsset(address asset, address observer) external {
         require(observer.code.length > 0, "Invalid observer");
         require(IAssetCheckpointObserver(observer).shareToken() == asset, "Observer asset mismatch");
-        require(IAssetCheckpointObserver(observer).revenueDistributor() == address(this), "Observer distributor mismatch");
+        require(
+            IAssetCheckpointObserver(observer).revenueDistributor() == address(this), "Observer distributor mismatch"
+        );
         _registerAsset(asset, observer);
     }
 
@@ -174,12 +190,10 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     }
 
     /// @notice Universal payment processing: collects gross amount, deducts city tax to Aerarium, distributes net to shareholders, and emits receipt.
-    function processPayment(
-        address asset,
-        uint256 amount,
-        bytes32 categoryId,
-        bytes32 paymentId
-    ) external nonReentrant {
+    function processPayment(address asset, uint256 amount, bytes32 categoryId, bytes32 paymentId)
+        external
+        nonReentrant
+    {
         require(registeredAssets[asset], "Unknown asset");
         require(paymentId != bytes32(0) && amount > 0, "Invalid payment");
         require(!paid[msg.sender][paymentId], "Already paid");
@@ -246,7 +260,9 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     }
 
     function claimBatch(address[] calldata assets) external nonReentrant returns (uint256 total) {
-        for (uint256 i; i < assets.length; ++i) total += _claimFor(assets[i], msg.sender);
+        for (uint256 i; i < assets.length; ++i) {
+            total += _claimFor(assets[i], msg.sender);
+        }
     }
 
     function _claimFor(address asset, address account) internal returns (uint256 amount) {
@@ -263,12 +279,22 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     }
 
     /// @notice Seize all accrued revenue of an account by judicial order, transferring funds to recipient.
-    function judicialClaim(address asset, address from, address to) external onlyTribunal nonReentrant returns (uint256 amount) {
+    function judicialClaim(address asset, address from, address to)
+        external
+        onlyTribunal
+        nonReentrant
+        returns (uint256 amount)
+    {
         return _judicialClaim(asset, from, to);
     }
 
     /// @notice Seize a specific amount of an account's accrued revenue by judicial order, transferring funds to recipient.
-    function judicialClaim(address asset, address from, address to, uint256 amount) public onlyTribunal nonReentrant returns (uint256) {
+    function judicialClaim(address asset, address from, address to, uint256 amount)
+        public
+        onlyTribunal
+        nonReentrant
+        returns (uint256)
+    {
         require(registeredAssets[asset], "Unknown asset");
         require(from != address(0), "Invalid from");
         require(to != address(0) && to != address(this), "Invalid to");
@@ -285,12 +311,22 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     }
 
     /// @notice Alias for judicialClaim with specific amount.
-    function judicialSeize(address asset, address from, address to, uint256 amount) external onlyTribunal nonReentrant returns (uint256) {
+    function judicialSeize(address asset, address from, address to, uint256 amount)
+        external
+        onlyTribunal
+        nonReentrant
+        returns (uint256)
+    {
         return judicialClaim(asset, from, to, amount);
     }
 
     /// @notice Batch seizure of all accrued revenue across multiple assets for an account.
-    function judicialClaimBatch(address[] calldata assets, address from, address to) external onlyTribunal nonReentrant returns (uint256 total) {
+    function judicialClaimBatch(address[] calldata assets, address from, address to)
+        external
+        onlyTribunal
+        nonReentrant
+        returns (uint256 total)
+    {
         for (uint256 i; i < assets.length; ++i) {
             total += _judicialClaim(assets[i], from, to);
         }

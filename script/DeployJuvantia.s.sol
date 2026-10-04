@@ -21,13 +21,20 @@ contract DeployJuvantia is Script {
         JuvantiaRevenueDistributor revenue = new JuvantiaRevenueDistributor(euroToken, deployer, address(aerarium));
         JuvantiaAsset assetImpl = new JuvantiaAsset();
         JuvantiaAssetFabrica factoryImpl = new JuvantiaAssetFabrica(address(assetImpl));
-        JuvantiaAssetFabrica fabrica = JuvantiaAssetFabrica(address(new ERC1967Proxy(
-            address(factoryImpl), abi.encodeCall(JuvantiaAssetFabrica.initialize, (deployer, address(revenue)))
-        )));
+        JuvantiaAssetFabrica fabrica = JuvantiaAssetFabrica(
+            address(
+                new ERC1967Proxy(
+                    address(factoryImpl), abi.encodeCall(JuvantiaAssetFabrica.initialize, (deployer, address(revenue)))
+                )
+            )
+        );
         revenue.setRegistrar(address(fabrica), true);
         JuvantiaTradeHub tradeImpl = new JuvantiaTradeHub();
-        address trade = address(new ERC1967Proxy(address(tradeImpl),
-            abi.encodeCall(JuvantiaTradeHub.initialize, (euroToken, deployer, address(revenue)))));
+        address trade = address(
+            new ERC1967Proxy(
+                address(tradeImpl), abi.encodeCall(JuvantiaTradeHub.initialize, (euroToken, deployer, address(revenue)))
+            )
+        );
         revenue.setEscrow(trade, true);
         JuvantiaServicePayments services = new JuvantiaServicePayments(euroToken);
         vm.stopBroadcast();

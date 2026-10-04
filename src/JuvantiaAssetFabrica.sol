@@ -16,8 +16,12 @@ contract JuvantiaAssetFabrica is UUPSUpgradeable, OwnableUpgradeable {
     mapping(address => address) public parentAsset;
     mapping(address => address[]) internal _subAssets;
 
-    event AssetCreated(bytes32 indexed assetId, address indexed tokenAddress, address indexed initialOwner, string name);
-    event SubAssetCreated(bytes32 indexed parentAssetId, bytes32 indexed assetId, address indexed tokenAddress, address parentTokenAddress);
+    event AssetCreated(
+        bytes32 indexed assetId, address indexed tokenAddress, address indexed initialOwner, string name
+    );
+    event SubAssetCreated(
+        bytes32 indexed parentAssetId, bytes32 indexed assetId, address indexed tokenAddress, address parentTokenAddress
+    );
     event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
 
     constructor(address implementation) {
@@ -39,19 +43,24 @@ contract JuvantiaAssetFabrica is UUPSUpgradeable, OwnableUpgradeable {
     }
 
     function createAsset(bytes32 assetId, string calldata name, address initialOwner)
-        external onlyOwner returns (address clone)
+        external
+        onlyOwner
+        returns (address clone)
     {
         return _createAsset(assetId, name, "APU", initialOwner);
     }
 
     function createAsset(bytes32 assetId, string calldata name, string calldata symbol, address initialOwner)
-        external onlyOwner returns (address clone)
+        external
+        onlyOwner
+        returns (address clone)
     {
         return _createAsset(assetId, name, symbol, initialOwner);
     }
 
     function _createAsset(bytes32 assetId, string memory name, string memory symbol, address initialOwner)
-        internal returns (address clone)
+        internal
+        returns (address clone)
     {
         require(assetId != bytes32(0) && assetById[assetId] == address(0), "Invalid or duplicate asset ID");
         clone = Clones.cloneDeterministic(assetImplementation, assetId);
@@ -87,6 +96,8 @@ contract JuvantiaAssetFabrica is UUPSUpgradeable, OwnableUpgradeable {
         return _subAssets[parent];
     }
 
-    function assetCount() external view returns (uint256) { return assets.length; }
+    function assetCount() external view returns (uint256) {
+        return assets.length;
+    }
     function _authorizeUpgrade(address) internal override onlyOwner {}
 }

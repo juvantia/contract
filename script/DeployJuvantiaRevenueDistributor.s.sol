@@ -11,8 +11,7 @@ contract DeployJuvantiaRevenueDistributor is Script {
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
         address aerarium = vm.envOr("AERARIUM_ADDRESS", address(0));
-        JuvantiaRevenueDistributor distributor = new JuvantiaRevenueDistributor(
-            euroToken, deployer, aerarium);
+        JuvantiaRevenueDistributor distributor = new JuvantiaRevenueDistributor(euroToken, deployer, aerarium);
         vm.stopBroadcast();
         console.log("JuvantiaRevenueDistributor", address(distributor));
     }

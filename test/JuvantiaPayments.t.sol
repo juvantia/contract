@@ -12,7 +12,15 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
     event TaxRateSet(bytes32 indexed categoryId, uint256 newRateBps);
     event TaxReceived(address indexed source, uint256 amount, bytes32 indexed categoryId);
     event TreasurySpent(address indexed recipient, uint256 amount, string purpose);
-    event PaymentProcessed(bytes32 indexed paymentId, address indexed payer, address indexed assetToken, bytes32 categoryId, uint256 amount, uint256 tax, uint256 net);
+    event PaymentProcessed(
+        bytes32 indexed paymentId,
+        address indexed payer,
+        address indexed assetToken,
+        bytes32 categoryId,
+        uint256 amount,
+        uint256 tax,
+        uint256 net
+    );
 
     function testServiceReceiptHasAllBusinessIdentifiers() public {
         bytes32 requestId = keccak256("service-request");

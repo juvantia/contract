@@ -29,7 +29,13 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
 
     mapping(address => uint256) public pendingWithdrawals;
 
-    event OrderCreated(uint256 indexed orderId, address indexed seller, address indexed assetToken, uint256 amount, uint256 pricePerToken);
+    event OrderCreated(
+        uint256 indexed orderId,
+        address indexed seller,
+        address indexed assetToken,
+        uint256 amount,
+        uint256 pricePerToken
+    );
     event OrderFilled(uint256 indexed orderId, address indexed buyer, uint256 amount, uint256 totalCost);
     event OrderCancelled(uint256 indexed orderId);
     event Withdrawal(address indexed seller, uint256 amount);
@@ -39,7 +45,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         _disableInitializers();
     }
 
-    function initialize(address _currencyToken, address initialOwner, address distributor) initializer public {
+    function initialize(address _currencyToken, address initialOwner, address distributor) public initializer {
         __Ownable_init(initialOwner);
 
         require(_currencyToken != address(0), "Invalid currency token");
@@ -56,7 +62,11 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
      * @param amount The total number of asset tokens (e.g., 1000 * 10**18).
      * @param pricePerToken The price in currencyToken for ONE full asset token (i.e. 10**18 wei).
      */
-    function createOrder(address assetToken, uint256 amount, uint256 pricePerToken) external nonReentrant returns (uint256) {
+    function createOrder(address assetToken, uint256 amount, uint256 pricePerToken)
+        external
+        nonReentrant
+        returns (uint256)
+    {
         require(amount > 0, "Amount must be > 0");
         require(pricePerToken > 0, "Price must be > 0");
         require(assetToken != address(0), "Invalid asset token");
@@ -98,10 +108,10 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
 
         // Transfer currency from buyer to JuvantiaTradeHub (requires prior approval)
         currencyToken.safeTransferFrom(msg.sender, address(this), totalCost);
-        
+
         // Credit the seller's internal balance
         pendingWithdrawals[order.seller] += totalCost;
-        
+
         // Transfer asset tokens to buyer
         revenueDistributor.escrowWithdraw(order.assetToken, order.seller, amount);
         IERC20(order.assetToken).safeTransfer(msg.sender, amount);
@@ -136,7 +146,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         require(amount > 0, "No funds to withdraw");
 
         pendingWithdrawals[msg.sender] = 0;
-        
+
         // Transfer accumulated currency to the seller
         currencyToken.safeTransfer(msg.sender, amount);
 

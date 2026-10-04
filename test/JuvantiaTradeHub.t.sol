@@ -10,8 +10,14 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
 
     function setUp() public override {
         super.setUp();
-        trade = JuvantiaTradeHub(address(new ERC1967Proxy(address(new JuvantiaTradeHub()),
-            abi.encodeCall(JuvantiaTradeHub.initialize, (address(euroToken), address(this), address(revenue))))));
+        trade = JuvantiaTradeHub(
+            address(
+                new ERC1967Proxy(
+                    address(new JuvantiaTradeHub()),
+                    abi.encodeCall(JuvantiaTradeHub.initialize, (address(euroToken), address(this), address(revenue)))
+                )
+            )
+        );
         revenue.setEscrow(address(trade), true);
     }
 

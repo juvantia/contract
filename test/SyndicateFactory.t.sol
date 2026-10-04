@@ -19,15 +19,15 @@ contract SyndicateFactoryTest is ProtocolFixture {
         authorizer = vm.addr(authorizerPrivateKey);
 
         syndicateImpl = new Syndicate();
-        SyndicateFactory factoryImpl = new SyndicateFactory(
-            address(syndicateImpl),
-            address(euroToken)
-        );
+        SyndicateFactory factoryImpl = new SyndicateFactory(address(syndicateImpl), address(euroToken));
 
-        factory = SyndicateFactory(address(new ERC1967Proxy(
-            address(factoryImpl),
-            abi.encodeCall(SyndicateFactory.initialize, (address(this), authorizer))
-        )));
+        factory = SyndicateFactory(
+            address(
+                new ERC1967Proxy(
+                    address(factoryImpl), abi.encodeCall(SyndicateFactory.initialize, (address(this), authorizer))
+                )
+            )
+        );
     }
 
     function _signVoucher(SyndicateFactory.SyndicateDeploymentVoucher memory voucher)
@@ -193,7 +193,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
         assertEq(syndicate.pointsOf(alice), 50_000);
         assertEq(syndicate.pointsOf(bob), 50_000);
         assertEq(syndicate.shareOf(alice), 5_000); // 50.00%
-        assertEq(syndicate.shareOf(bob), 5_000);   // 50.00%
+        assertEq(syndicate.shareOf(bob), 5_000); // 50.00%
     }
 
     function testKickCoFounderProtectionEightyPercent() public {
@@ -422,18 +422,19 @@ contract SyndicateFactoryTest is ProtocolFixture {
         address clone = factory.createSyndicate(voucher, sig);
 
         vm.expectRevert();
-        Syndicate(clone).initialize(
-            Syndicate.SyndicateInitParams({
-                token: address(euroToken),
-                primus: bob,
-                preset: Syndicate.PresetType.DemocraticMass,
-                grades: 6,
-                members: new address[](0),
-                memberGrades: new uint8[](0),
-                admin: bob,
-                tribunal: address(0)
-            })
-        );
+        Syndicate(clone)
+            .initialize(
+                Syndicate.SyndicateInitParams({
+                    token: address(euroToken),
+                    primus: bob,
+                    preset: Syndicate.PresetType.DemocraticMass,
+                    grades: 6,
+                    members: new address[](0),
+                    memberGrades: new uint8[](0),
+                    admin: bob,
+                    tribunal: address(0)
+                })
+            );
     }
 
     function testInvitationDeclinedAndCancelled() public {

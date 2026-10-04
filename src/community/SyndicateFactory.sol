@@ -88,25 +88,29 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
     }
 
     function hashVoucher(SyndicateDeploymentVoucher calldata voucher) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-            SYNDICATE_VOUCHER_TYPEHASH,
-            voucher.draftId,
-            keccak256(bytes(voucher.name)),
-            voucher.primus,
-            voucher.presetType,
-            voucher.gradeCount,
-            _hashAddresses(voucher.members),
-            _hashUint8s(voucher.memberGrades),
-            voucher.deadline,
-            voucher.salt
-        )));
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    SYNDICATE_VOUCHER_TYPEHASH,
+                    voucher.draftId,
+                    keccak256(bytes(voucher.name)),
+                    voucher.primus,
+                    voucher.presetType,
+                    voucher.gradeCount,
+                    _hashAddresses(voucher.members),
+                    _hashUint8s(voucher.memberGrades),
+                    voucher.deadline,
+                    voucher.salt
+                )
+            )
+        );
     }
 
     /// @notice Deploy a new Syndicate clone using a Core-authorized voucher.
-    function createSyndicate(
-        SyndicateDeploymentVoucher calldata voucher,
-        bytes calldata signature
-    ) external returns (address clone) {
+    function createSyndicate(SyndicateDeploymentVoucher calldata voucher, bytes calldata signature)
+        external
+        returns (address clone)
+    {
         require(block.timestamp <= voucher.deadline, "Voucher expired");
         require(voucher.draftId != bytes32(0), "Invalid draft ID");
         require(!usedDrafts[voucher.draftId], "Draft already used");
@@ -121,18 +125,19 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
         bytes32 salt = keccak256(abi.encodePacked(voucher.salt, "SYNDICATE"));
         clone = Clones.cloneDeterministic(syndicateImplementation, salt);
 
-        Syndicate(clone).initialize(
-            Syndicate.SyndicateInitParams({
-                token: paymentToken,
-                primus: voucher.primus,
-                preset: Syndicate.PresetType(voucher.presetType),
-                grades: voucher.gradeCount,
-                members: voucher.members,
-                memberGrades: voucher.memberGrades,
-                admin: owner(),
-                tribunal: tribunal
-            })
-        );
+        Syndicate(clone)
+            .initialize(
+                Syndicate.SyndicateInitParams({
+                    token: paymentToken,
+                    primus: voucher.primus,
+                    preset: Syndicate.PresetType(voucher.presetType),
+                    grades: voucher.gradeCount,
+                    members: voucher.members,
+                    memberGrades: voucher.memberGrades,
+                    admin: owner(),
+                    tribunal: tribunal
+                })
+            );
 
         syndicateById[voucher.draftId] = clone;
         syndicates.push(clone);

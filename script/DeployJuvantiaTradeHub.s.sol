@@ -13,8 +13,11 @@ contract DeployJuvantiaTradeHub is Script {
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
         JuvantiaTradeHub implementation = new JuvantiaTradeHub();
-        address proxy = address(new ERC1967Proxy(address(implementation),
-            abi.encodeCall(JuvantiaTradeHub.initialize, (euroToken, deployer, distributor))));
+        address proxy = address(
+            new ERC1967Proxy(
+                address(implementation), abi.encodeCall(JuvantiaTradeHub.initialize, (euroToken, deployer, distributor))
+            )
+        );
         vm.stopBroadcast();
         console.log("JuvantiaTradeHub implementation", address(implementation));
         console.log("JuvantiaTradeHub", proxy);

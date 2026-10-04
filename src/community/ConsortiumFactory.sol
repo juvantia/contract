@@ -16,6 +16,7 @@ import {Consortium} from "./Consortium.sol";
 /// @notice Factory for deploying governed Juvantia Consortium clones and their fixed 100,000 APU share tokens.
 contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradeable {
     using SafeERC20 for IERC20;
+
     struct ConsortiumDeploymentVoucher {
         bytes32 draftId;
         string name;
@@ -47,18 +48,10 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
     event AuthorizerSet(address indexed authorizer);
     event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
     event ConsortiumCreated(
-        bytes32 indexed draftId,
-        address indexed consortium,
-        address indexed shareToken,
-        address magister
+        bytes32 indexed draftId, address indexed consortium, address indexed shareToken, address magister
     );
 
-    constructor(
-        address consortiumImpl,
-        address assetImpl,
-        address distributor,
-        address aerariumAddr
-    ) {
+    constructor(address consortiumImpl, address assetImpl, address distributor, address aerariumAddr) {
         require(consortiumImpl.code.length > 0 && assetImpl.code.length > 0, "Invalid implementations");
         require(distributor.code.length > 0, "Invalid distributor");
         _disableInitializers();
@@ -105,25 +98,29 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
     }
 
     function hashVoucher(ConsortiumDeploymentVoucher calldata voucher) public view returns (bytes32) {
-        return _hashTypedDataV4(keccak256(abi.encode(
-            CONSORTIUM_VOUCHER_TYPEHASH,
-            voucher.draftId,
-            keccak256(bytes(voucher.name)),
-            keccak256(bytes(voucher.symbol)),
-            voucher.magister,
-            _hashAddresses(voucher.incorporators),
-            _hashUints(voucher.incorporatorShares),
-            voucher.treasuryShares,
-            voucher.deadline,
-            voucher.salt
-        )));
+        return _hashTypedDataV4(
+            keccak256(
+                abi.encode(
+                    CONSORTIUM_VOUCHER_TYPEHASH,
+                    voucher.draftId,
+                    keccak256(bytes(voucher.name)),
+                    keccak256(bytes(voucher.symbol)),
+                    voucher.magister,
+                    _hashAddresses(voucher.incorporators),
+                    _hashUints(voucher.incorporatorShares),
+                    voucher.treasuryShares,
+                    voucher.deadline,
+                    voucher.salt
+                )
+            )
+        );
     }
 
     /// @notice Deploy a new Consortium clone and share token clone using a Core-authorized voucher.
-    function createConsortium(
-        ConsortiumDeploymentVoucher calldata voucher,
-        bytes calldata signature
-    ) external returns (address consortiumClone, address assetClone) {
+    function createConsortium(ConsortiumDeploymentVoucher calldata voucher, bytes calldata signature)
+        external
+        returns (address consortiumClone, address assetClone)
+    {
         require(block.timestamp <= voucher.deadline, "Voucher expired");
         require(voucher.draftId != bytes32(0), "Invalid draft ID");
         require(!usedDrafts[voucher.draftId], "Draft already used");
@@ -150,23 +147,18 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         assetClone = Clones.cloneDeterministic(assetImplementation, assetSalt);
 
         // Asset mints 100,000 ether to this factory initially
-        JuvantiaAsset(assetClone).initialize(
-            voucher.name,
-            voucher.symbol,
-            address(this),
-            owner(),
-            address(revenueDistributor),
-            tribunal
-        );
+        JuvantiaAsset(assetClone)
+            .initialize(voucher.name, voucher.symbol, address(this), owner(), address(revenueDistributor), tribunal);
 
-        Consortium(consortiumClone).initialize(
-            address(revenueDistributor.revenueToken()),
-            assetClone,
-            address(revenueDistributor),
-            voucher.magister,
-            owner(),
-            tribunal
-        );
+        Consortium(consortiumClone)
+            .initialize(
+                address(revenueDistributor.revenueToken()),
+                assetClone,
+                address(revenueDistributor),
+                voucher.magister,
+                owner(),
+                tribunal
+            );
 
         // Register asset in RevenueDistributor with consortium ledger observer FIRST
         revenueDistributor.registerAsset(assetClone, consortiumClone);

@@ -67,13 +67,10 @@ contract Consortium is ConsortiumTreasury {
         _;
     }
 
-    function initialize(
-        address token,
-        address shares,
-        address distributor,
-        address initialMagister,
-        address admin_
-    ) external initializer {
+    function initialize(address token, address shares, address distributor, address initialMagister, address admin_)
+        external
+        initializer
+    {
         _initialize(token, shares, distributor, initialMagister, admin_, address(0));
     }
 
@@ -253,9 +250,8 @@ contract Consortium is ConsortiumTreasury {
         if (supply == 0) return false;
 
         if (
-            prop.pType == ProposalType.MagisterElection ||
-            prop.pType == ProposalType.SpendingLimitsPackage ||
-            prop.pType == ProposalType.MajorExpenditure
+            prop.pType == ProposalType.MagisterElection || prop.pType == ProposalType.SpendingLimitsPackage
+                || prop.pType == ProposalType.MajorExpenditure
         ) {
             return prop.forVotes > Math.mulDiv(supply, 50001, 100000); // > 50.001%
         } else if (prop.pType == ProposalType.RevenueDistribution || prop.pType == ProposalType.TreasurySale) {
@@ -279,7 +275,8 @@ contract Consortium is ConsortiumTreasury {
             majorLimit = m;
             emit SpendingLimitsChanged(p, m);
         } else if (prop.pType == ProposalType.MajorExpenditure) {
-            (address recipient, uint256 amount, bytes32 referenceId) = abi.decode(prop.data, (address, uint256, bytes32));
+            (address recipient, uint256 amount, bytes32 referenceId) =
+                abi.decode(prop.data, (address, uint256, bytes32));
             require(amount <= majorLimit, "Exceeds major limit");
             _spendOperating(recipient, amount, referenceId);
         } else if (prop.pType == ProposalType.RevenueDistribution) {

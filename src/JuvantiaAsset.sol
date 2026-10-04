@@ -22,25 +22,38 @@ contract JuvantiaAsset is ERC20Upgradeable, OwnableUpgradeable {
         _;
     }
 
-    constructor() { _disableInitializers(); }
+    constructor() {
+        _disableInitializers();
+    }
 
     function initialize(
-        string memory name_, string memory symbol_, address initialOwner,
-        address admin, address distributor
+        string memory name_,
+        string memory symbol_,
+        address initialOwner,
+        address admin,
+        address distributor
     ) external initializer {
         _initialize(name_, symbol_, initialOwner, admin, distributor, address(0));
     }
 
     function initialize(
-        string memory name_, string memory symbol_, address initialOwner,
-        address admin, address distributor, address initialTribunal
+        string memory name_,
+        string memory symbol_,
+        address initialOwner,
+        address admin,
+        address distributor,
+        address initialTribunal
     ) external initializer {
         _initialize(name_, symbol_, initialOwner, admin, distributor, initialTribunal);
     }
 
     function _initialize(
-        string memory name_, string memory symbol_, address initialOwner,
-        address admin, address distributor, address initialTribunal
+        string memory name_,
+        string memory symbol_,
+        address initialOwner,
+        address admin,
+        address distributor,
+        address initialTribunal
     ) internal onlyInitializing {
         require(initialOwner != address(0) && distributor.code.length > 0, "Invalid initialization");
         __ERC20_init(name_, symbol_);

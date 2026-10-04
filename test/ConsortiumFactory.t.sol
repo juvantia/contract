@@ -22,17 +22,16 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         consortiumImpl = new Consortium();
         assetImpl = new JuvantiaAsset();
 
-        ConsortiumFactory factoryImpl = new ConsortiumFactory(
-            address(consortiumImpl),
-            address(assetImpl),
-            address(revenue),
-            address(aerarium)
-        );
+        ConsortiumFactory factoryImpl =
+            new ConsortiumFactory(address(consortiumImpl), address(assetImpl), address(revenue), address(aerarium));
 
-        factory = ConsortiumFactory(address(new ERC1967Proxy(
-            address(factoryImpl),
-            abi.encodeCall(ConsortiumFactory.initialize, (address(this), authorizer))
-        )));
+        factory = ConsortiumFactory(
+            address(
+                new ERC1967Proxy(
+                    address(factoryImpl), abi.encodeCall(ConsortiumFactory.initialize, (address(this), authorizer))
+                )
+            )
+        );
 
         revenue.setRegistrar(address(factory), true);
     }
@@ -152,13 +151,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         (address cClone, address aClone) = factory.createConsortium(voucher, sig);
 
         vm.expectRevert();
-        Consortium(cClone).initialize(
-            address(euroToken),
-            aClone,
-            address(revenue),
-            bob,
-            address(this)
-        );
+        Consortium(cClone).initialize(address(euroToken), aClone, address(revenue), bob, address(this));
     }
 
     function testMagisterPettySpending() public {
@@ -202,10 +195,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         // Alice holds 60k of 80k circulating (75% > 50.001%)
         // Alice proposes Bob as new Magister
         vm.prank(alice);
-        uint256 pId = consortium.propose(
-            Consortium.ProposalType.MagisterElection,
-            abi.encode(bob)
-        );
+        uint256 pId = consortium.propose(Consortium.ProposalType.MagisterElection, abi.encode(bob));
 
         // Alice votes support -> crosses 50.001% threshold -> auto-executes!
         vm.prank(alice);
@@ -227,10 +217,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
 
         // Alice (60k) + Bob (20k) = 80k circulating. Alice holds 60k = 75%
         vm.prank(alice);
-        uint256 pId = consortium.propose(
-            Consortium.ProposalType.RevenueDistribution,
-            abi.encode(4_000 ether)
-        );
+        uint256 pId = consortium.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(4_000 ether));
 
         // Alice votes support (60k / 80k = 75% >= 75%) -> auto-executes!
         vm.prank(alice);
@@ -264,8 +251,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         // Alice proposes new limits: petty = 2,500 ether, major = 75,000 ether
         vm.prank(alice);
         uint256 pId = consortium.propose(
-            Consortium.ProposalType.SpendingLimitsPackage,
-            abi.encode(uint256(2_500 ether), uint256(75_000 ether))
+            Consortium.ProposalType.SpendingLimitsPackage, abi.encode(uint256(2_500 ether), uint256(75_000 ether))
         );
 
         // Alice votes support (60k / 80k = 75% > 50.001%) -> auto-executes
@@ -290,8 +276,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         // Alice proposes major spending of 20,000 ether to Carol
         vm.prank(alice);
         uint256 pId = consortium.propose(
-            Consortium.ProposalType.MajorExpenditure,
-            abi.encode(carol, uint256(20_000 ether), keccak256("major-ref-1"))
+            Consortium.ProposalType.MajorExpenditure, abi.encode(carol, uint256(20_000 ether), keccak256("major-ref-1"))
         );
 
         // Alice votes support -> auto-executes

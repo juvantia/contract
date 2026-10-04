@@ -13,7 +13,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
 
     enum PresetType {
         DominantLeadership, // 0: W(Gk) = 2^(k-1), G1=1..G6=32
-        DemocraticMass      // 1: Moderate: G1=1, G2=2, G3=3, G4=4, G5=6, G6=8
+        DemocraticMass // 1: Moderate: G1=1, G2=2, G3=3, G4=4, G5=6, G6=8
     }
 
     enum ActionType {
@@ -96,10 +96,14 @@ contract Syndicate is Initializable, ReentrancyGuard {
     event InvitationCancelled(address indexed invitee);
     event OperatingDeposit(address indexed payer, bytes32 indexed referenceId, uint256 amount);
     event OperatingSpent(address indexed recipient, bytes32 indexed referenceId, uint256 amount);
-    event ActionProposed(uint256 indexed actionId, ActionType indexed actionType, address indexed target, uint8 grade, address proposer);
+    event ActionProposed(
+        uint256 indexed actionId, ActionType indexed actionType, address indexed target, uint8 grade, address proposer
+    );
     event ActionVoted(uint256 indexed actionId, address indexed voter, uint256 weight);
     event ActionExecuted(uint256 indexed actionId, ActionType indexed actionType, address indexed target);
-    event CollectionStarted(uint256 indexed collectionId, uint256 targetAmount, bytes32 indexed purpose, uint256 memberCount);
+    event CollectionStarted(
+        uint256 indexed collectionId, uint256 targetAmount, bytes32 indexed purpose, uint256 memberCount
+    );
     event QuotaPaid(uint256 indexed collectionId, address indexed member, uint256 amount);
     event CollectionCompleted(uint256 indexed collectionId, uint256 totalCollected);
     event CollectionCancelled(uint256 indexed collectionId, uint256 totalCollected);
@@ -203,21 +207,21 @@ contract Syndicate is Initializable, ReentrancyGuard {
 
     /// @notice Returns admission threshold in basis points (10000 = 100.00%).
     function getAdmissionThreshold(uint8 grade) public pure returns (uint256) {
-        if (grade <= 2) return 0;       // G1, G2: Primus unilateral
-        if (grade == 3) return 5_000;   // G3: 50.0%
-        if (grade == 4) return 5_500;   // G4: 55.0%
-        if (grade == 5) return 6_000;   // G5: 60.0%
-        return 6_667;                   // G6: 66.67% (2/3)
+        if (grade <= 2) return 0; // G1, G2: Primus unilateral
+        if (grade == 3) return 5_000; // G3: 50.0%
+        if (grade == 4) return 5_500; // G4: 55.0%
+        if (grade == 5) return 6_000; // G5: 60.0%
+        return 6_667; // G6: 66.67% (2/3)
     }
 
     /// @notice Returns kick threshold in basis points (10000 = 100.00%).
     function getKickThreshold(uint8 grade) public pure returns (uint256) {
-        if (grade == 1) return 5_001;   // G1: > 50.0% (simple majority)
-        if (grade == 2) return 5_000;   // G2: 50.0%
-        if (grade == 3) return 5_500;   // G3: 55.0%
-        if (grade == 4) return 6_000;   // G4: 60.0%
-        if (grade == 5) return 6_667;   // G5: 66.67% (2/3)
-        return 8_000;                   // G6: 80.0% (4/5)
+        if (grade == 1) return 5_001; // G1: > 50.0% (simple majority)
+        if (grade == 2) return 5_000; // G2: 50.0%
+        if (grade == 3) return 5_500; // G3: 55.0%
+        if (grade == 4) return 6_000; // G4: 60.0%
+        if (grade == 5) return 6_667; // G5: 66.67% (2/3)
+        return 8_000; // G6: 80.0% (4/5)
     }
 
     /// @notice Normalized APU-points on the fixed 100,000 total clan scale.
@@ -307,9 +311,14 @@ contract Syndicate is Initializable, ReentrancyGuard {
         require(eligibleWeight > 0, "No eligible weight");
 
         if (kickThreshold == 5_001) {
-            require(memberWeights[primus] * 10_000 > 5_000 * eligibleWeight, "Threshold not met, requires voting action");
+            require(
+                memberWeights[primus] * 10_000 > 5_000 * eligibleWeight, "Threshold not met, requires voting action"
+            );
         } else {
-            require(memberWeights[primus] * 10_000 >= kickThreshold * eligibleWeight, "Threshold not met, requires voting action");
+            require(
+                memberWeights[primus] * 10_000 >= kickThreshold * eligibleWeight,
+                "Threshold not met, requires voting action"
+            );
         }
 
         _removeMember(member);
@@ -377,7 +386,11 @@ contract Syndicate is Initializable, ReentrancyGuard {
     }
 
     /// @notice Propose a clan action (Admission G3..G6, Kick, GradeChange G3..G6, Replace Primus).
-    function proposeAction(ActionType aType, address target, uint8 grade) external onlyMember returns (uint256 actionId) {
+    function proposeAction(ActionType aType, address target, uint8 grade)
+        external
+        onlyMember
+        returns (uint256 actionId)
+    {
         if (aType == ActionType.AddMember) {
             require(target != address(0) && target != address(this), "Invalid address");
             require(!isMember[target], "Already member");
@@ -650,8 +663,16 @@ contract Syndicate is Initializable, ReentrancyGuard {
         return collections[collectionId];
     }
 
-    function getMemberQuota(uint256 collectionId, address member) external view returns (uint256 quota, bool paid, bool refunded) {
-        return (collectionQuotas[collectionId][member], hasPaidQuota[collectionId][member], hasRefunded[collectionId][member]);
+    function getMemberQuota(uint256 collectionId, address member)
+        external
+        view
+        returns (uint256 quota, bool paid, bool refunded)
+    {
+        return (
+            collectionQuotas[collectionId][member],
+            hasPaidQuota[collectionId][member],
+            hasRefunded[collectionId][member]
+        );
     }
 
     function getUnpaidMembers(uint256 collectionId) external view returns (address[] memory) {

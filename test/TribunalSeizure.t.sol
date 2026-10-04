@@ -24,25 +24,27 @@ contract TribunalSeizureTest is ProtocolFixture {
         // Deploy Consortium Factory
         Consortium cImpl = new Consortium();
         JuvantiaAsset aImpl = new JuvantiaAsset();
-        ConsortiumFactory cfImpl = new ConsortiumFactory(
-            address(cImpl),
-            address(aImpl),
-            address(revenue),
-            address(aerarium)
+        ConsortiumFactory cfImpl =
+            new ConsortiumFactory(address(cImpl), address(aImpl), address(revenue), address(aerarium));
+        cFactory = ConsortiumFactory(
+            address(
+                new ERC1967Proxy(
+                    address(cfImpl), abi.encodeCall(ConsortiumFactory.initialize, (address(this), authorizer))
+                )
+            )
         );
-        cFactory = ConsortiumFactory(address(new ERC1967Proxy(
-            address(cfImpl),
-            abi.encodeCall(ConsortiumFactory.initialize, (address(this), authorizer))
-        )));
         revenue.setRegistrar(address(cFactory), true);
 
         // Deploy Syndicate Factory
         Syndicate sImpl = new Syndicate();
         SyndicateFactory sfImpl = new SyndicateFactory(address(sImpl), address(euroToken));
-        sFactory = SyndicateFactory(address(new ERC1967Proxy(
-            address(sfImpl),
-            abi.encodeCall(SyndicateFactory.initialize, (address(this), authorizer))
-        )));
+        sFactory = SyndicateFactory(
+            address(
+                new ERC1967Proxy(
+                    address(sfImpl), abi.encodeCall(SyndicateFactory.initialize, (address(this), authorizer))
+                )
+            )
+        );
     }
 
     // ==========================================
