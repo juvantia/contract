@@ -22,6 +22,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
             )
         );
         revenue.setEscrow(address(trade), true);
+        revenue.setPaymentSource(address(trade), 1);
     }
 
     function createOrder(uint256 amount, uint256 price) internal returns (uint256 id) {
@@ -34,7 +35,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function testFillAndClaimExactEuroThroughDistributor() public {
         uint256 id = createOrder(100 ether, 5 ether);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 200 ether);
+        euroToken.approve(address(revenue), 200 ether);
         trade.fillOrder(id, 40 ether);
         vm.stopPrank();
         (,, uint256 remaining,, bool active) = trade.orders(id);
@@ -66,7 +67,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         assertEq(revenue.claimable(address(asset), alice), 100 ether);
         assertEq(revenue.claimable(address(asset), address(trade)), 0);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 100_000);
+        euroToken.approve(address(revenue), 100_000);
         trade.fillOrder(id, 100_000 ether);
         vm.stopPrank();
         assertEq(revenue.claimFor(address(asset), bob), 0);
@@ -108,7 +109,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function testTinyFillRoundsUpAndNeverTransfersForFree() public {
         uint256 id = createOrder(1 ether, 1);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 1);
+        euroToken.approve(address(revenue), 1);
         trade.fillOrder(id, 1);
         vm.stopPrank();
         assertEq(trade.pendingWithdrawals(alice), 1);
@@ -125,7 +126,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function testTradeHubHasNoWithdrawalEntryPoint() public {
         uint256 id = createOrder(100 ether, 1 ether);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 100 ether);
+        euroToken.approve(address(revenue), 100 ether);
         trade.fillOrder(id, 100 ether);
         vm.stopPrank();
         vm.prank(alice);
@@ -138,7 +139,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function testClaimForAlwaysPaysSellerAfterAllSharesAreSold() public {
         uint256 id = createOrder(100_000 ether, 1);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 100_000);
+        euroToken.approve(address(revenue), 100_000);
         trade.fillOrder(id, 100_000 ether);
         vm.stopPrank();
         assertEq(revenue.effectiveBalanceOf(address(asset), alice), 0);
@@ -159,7 +160,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         uint256 otherId = trade.createOrder(address(asset), 100 ether, 1 ether);
         vm.stopPrank();
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 300 ether);
+        euroToken.approve(address(revenue), 300 ether);
         trade.fillOrder(id, 40 ether);
         trade.fillOrder(otherId, 100 ether);
         trade.fillOrder(id, 60 ether);
@@ -181,7 +182,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         revenue.distributeRevenue(address(asset), 10 ether);
         revenue.distributeRevenue(address(other), 20 ether);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 200_000);
+        euroToken.approve(address(revenue), 200_000);
         trade.fillOrder(id, 100_000 ether);
         trade.fillOrder(otherId, 100_000 ether);
         vm.stopPrank();
@@ -200,30 +201,18 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     }
 
     function testUnfundedOrUnauthorizedTradeCreditsRejected() public {
-        vm.expectRevert("Invalid escrow asset");
-        revenue.depositTradeProceeds(address(asset), alice, 1 ether);
-        vm.prank(address(trade));
-        vm.expectRevert("Invalid escrow asset");
-        revenue.depositTradeProceeds(address(euroToken), alice, 1 ether);
-        vm.prank(address(trade));
-        vm.expectRevert("Invalid seller");
-        revenue.depositTradeProceeds(address(asset), address(0), 1 ether);
-        vm.prank(address(trade));
-        vm.expectRevert("Zero amount");
-        revenue.depositTradeProceeds(address(asset), alice, 0);
-        vm.prank(address(trade));
-        vm.expectRevert();
-        revenue.depositTradeProceeds(address(asset), alice, 1 ether);
+        vm.expectRevert("Restricted category");
+        revenue.pay(keccak256("SHARE_TRADE"), bytes32(uint256(1)), 1 ether, 2, alice);
         assertEq(revenue.pendingTradeProceeds(alice), 0);
     }
 
     function testSettlementFailureRollsBackMoneySharesAndOrder() public {
         uint256 id = createOrder(100 ether, 2 ether);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 200 ether);
+        euroToken.approve(address(revenue), 200 ether);
         vm.mockCall(
             address(euroToken),
-            abi.encodeCall(IERC20.transferFrom, (address(trade), address(revenue), 200 ether)),
+            abi.encodeCall(IERC20.transferFrom, (bob, address(revenue), 200 ether)),
             abi.encode(true)
         );
         vm.expectRevert("Incorrect deposit");
@@ -233,10 +222,12 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         vm.clearMockedCalls();
 
         vm.mockCall(
-            address(euroToken), abi.encodeCall(IERC20.transferFrom, (bob, address(trade), 200 ether)), abi.encode(true)
+            address(euroToken),
+            abi.encodeCall(IERC20.transferFrom, (bob, address(revenue), 200 ether)),
+            abi.encode(true)
         );
         vm.prank(bob);
-        vm.expectRevert("Incorrect payment");
+        vm.expectRevert("Incorrect deposit");
         trade.fillOrder(id, 100 ether);
         assertFailedFillUnchanged(id);
         vm.clearMockedCalls();
@@ -264,7 +255,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function testRevocationBlocksNewCreditsButAllowsClaimsAndCancellation() public {
         uint256 id = createOrder(100 ether, 2 ether);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 200 ether);
+        euroToken.approve(address(revenue), 200 ether);
         trade.fillOrder(id, 40 ether);
         vm.stopPrank();
         revenue.setEscrow(address(trade), false);
@@ -281,7 +272,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         uint256 id = createOrder(100 ether, 2 ether);
         revenue.distributeRevenue(address(asset), 10 ether);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 200 ether);
+        euroToken.approve(address(revenue), 200 ether);
         trade.fillOrder(id, 100 ether);
         vm.stopPrank();
         revenue.setTribunal(address(this));
@@ -317,7 +308,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         vm.prank(bob);
         uint256 reverseId = trade.createOrder(address(asset), 100 ether, 1 ether);
         vm.startPrank(alice);
-        euroToken.approve(address(trade), 100 ether);
+        euroToken.approve(address(revenue), 100 ether);
         trade.fillOrder(reverseId, 100 ether);
         vm.stopPrank();
         assertEq(revenue.judicialClaim(address(asset), bob, carol), 100 ether);
@@ -327,7 +318,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
     function testPayoutFailurePreservesTradeCredit() public {
         uint256 id = createOrder(100 ether, 2 ether);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), 200 ether);
+        euroToken.approve(address(revenue), 200 ether);
         trade.fillOrder(id, 100 ether);
         vm.stopPrank();
         vm.mockCall(address(euroToken), abi.encodeCall(IERC20.transfer, (alice, 200 ether)), abi.encode(false));
@@ -348,7 +339,7 @@ contract JuvantiaTradeHubTest is ProtocolFixture {
         uint256 cost = (filled + 1 ether - 1) / 1 ether;
         revenue.distributeRevenue(address(asset), yield);
         vm.startPrank(bob);
-        euroToken.approve(address(trade), cost);
+        euroToken.approve(address(revenue), cost);
         trade.fillOrder(id, filled);
         vm.stopPrank();
         revenue.distributeRevenue(address(asset), yield);

@@ -7,19 +7,18 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IRevenueTreasury} from "./interfaces/IRevenueTreasury.sol";
-import {JuvantiaAerarium} from "./JuvantiaAerarium.sol";
+import {PaymentSettlement} from "./PaymentSettlement.sol";
 
 interface IRevenueAsset is IERC20 {
     function revenueDistributor() external view returns (address);
 }
 
 /// @notice On-chain accrual and payment settlement for registered fixed-supply assets; no backend claim signatures.
-contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
+contract JuvantiaRevenueDistributor is PaymentSettlement {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION = 1e36;
-    IERC20 public immutable revenueToken;
-    JuvantiaAerarium public aerarium;
+    uint256 private fundingNonce;
     address public tribunal;
 
     mapping(address => bool) public registrars;
@@ -35,9 +34,6 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
     mapping(address => mapping(address => uint256)) public escrowedBalance;
     mapping(address => mapping(address => mapping(address => uint256))) public escrowPositions;
     mapping(address => address) public revenueTreasuries;
-    mapping(address => bool) public encumbered;
-
-    mapping(address => mapping(bytes32 => bool)) public paid;
 
     // Addressed trade proceeds never enter the asset's reward-per-share index.
     mapping(address => mapping(address => uint256)) public tradeProceeds;
@@ -56,16 +52,6 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         address indexed assetToken, address indexed source, uint256 amount, uint256 cumulativeIndex
     );
     event RevenueClaimed(address indexed assetToken, address indexed account, uint256 amount);
-    event AerariumSet(address indexed aerarium);
-    event PaymentProcessed(
-        bytes32 indexed paymentId,
-        address indexed payer,
-        address indexed assetToken,
-        bytes32 categoryId,
-        uint256 amount,
-        uint256 tax,
-        uint256 net
-    );
     event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
     event AccountEncumbered(address indexed account, bool encumbered);
     event JudicialRevenueClaim(address indexed asset, address indexed from, address indexed to, uint256 amount);
@@ -76,24 +62,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         _;
     }
 
-    constructor(address token, address admin, address treasury) Ownable(admin) {
-        require(token.code.length > 0, "Invalid token");
-        revenueToken = IERC20(token);
-        if (treasury != address(0)) {
-            require(address(JuvantiaAerarium(treasury).revenueToken()) == token, "Treasury token mismatch");
-            aerarium = JuvantiaAerarium(treasury);
-        }
-    }
-
-    function setAerarium(address treasury) external onlyOwner {
-        if (treasury != address(0)) {
-            require(
-                address(JuvantiaAerarium(treasury).revenueToken()) == address(revenueToken), "Treasury token mismatch"
-            );
-        }
-        aerarium = JuvantiaAerarium(treasury);
-        emit AerariumSet(treasury);
-    }
+    constructor(address token, address admin, address treasury) PaymentSettlement(token, admin, treasury) {}
 
     function setTribunal(address newTribunal) external onlyOwner {
         address old = tribunal;
@@ -137,6 +106,7 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         require(IERC20(asset).totalSupply() == 100_000 ether, "Invalid supply");
         registeredAssets[asset] = true;
         revenueTreasuries[asset] = treasury;
+        if (treasury != address(0)) _setSource(treasury, 4);
         emit AssetRegistered(asset);
         if (treasury != address(0)) emit RevenueTreasuryRegistered(asset, treasury);
     }
@@ -198,61 +168,64 @@ contract JuvantiaRevenueDistributor is Ownable, ReentrancyGuard {
         emit RevenueDistributed(asset, source, amount, cumulativeIndex[asset]);
     }
 
-    /// @notice Direct zero-tax distribution of external revenue to asset shareholders.
+    /// @notice Compatibility entry; the published ASSET_REVENUE rule now applies.
     function distributeRevenue(address asset, uint256 amount) external nonReentrant {
         require(registeredAssets[asset], "Unknown asset");
-        require(amount > 0, "Zero amount");
-        uint256 beforeBalance = revenueToken.balanceOf(address(this));
-        revenueToken.safeTransferFrom(msg.sender, address(this), amount);
-        require(revenueToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
-        _distribute(asset, amount, msg.sender);
+        _settle(
+            Payment(
+                keccak256(abi.encode(msg.sender, asset, ++fundingNonce, amount)),
+                keccak256("ASSET_REVENUE"),
+                0,
+                1,
+                asset,
+                address(0),
+                amount,
+                0,
+                0
+            ),
+            msg.sender
+        );
     }
 
-    /// @notice A trusted marketplace funds proceeds belonging entirely to its seller, without tax or redistribution.
-    function depositTradeProceeds(address asset, address seller, uint256 amount) external nonReentrant {
-        require(escrows[msg.sender] && registeredAssets[asset], "Invalid escrow asset");
-        require(seller != address(0) && seller != address(this) && seller != msg.sender, "Invalid seller");
-        require(amount > 0, "Zero amount");
-        uint256 beforeBalance = revenueToken.balanceOf(address(this));
-        revenueToken.safeTransferFrom(msg.sender, address(this), amount);
-        require(revenueToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
-        tradeProceeds[asset][seller] += amount;
-        pendingTradeProceeds[seller] += amount;
-        totalTradeDeposited[asset] += amount;
-        emit TradeProceedsDeposited(asset, msg.sender, seller, amount);
-    }
-
-    /// @notice Universal payment processing: collects gross amount, deducts city tax to Aerarium, distributes net to shareholders, and emits receipt.
     function processPayment(address asset, uint256 amount, bytes32 categoryId, bytes32 paymentId)
         external
         nonReentrant
     {
         require(registeredAssets[asset], "Unknown asset");
-        require(paymentId != bytes32(0) && amount > 0, "Invalid payment");
-        require(!paid[msg.sender][paymentId], "Already paid");
-        paid[msg.sender][paymentId] = true;
+        _settle(Payment(paymentId, categoryId, 0, 1, asset, address(0), amount, 0, 0), msg.sender);
+    }
 
-        uint256 beforeBalance = revenueToken.balanceOf(address(this));
-        revenueToken.safeTransferFrom(msg.sender, address(this), amount);
-        require(revenueToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
+    function _validateCredit(Payment memory p) internal view override {
+        if (p.kind == 1) require(registeredAssets[p.destination], "Unknown asset");
+        if (p.kind == 2) require(escrows[msg.sender] && registeredAssets[p.asset], "Invalid escrow asset");
+    }
 
-        uint256 tax = 0;
-        if (address(aerarium) != address(0) && categoryId != bytes32(0)) {
-            uint256 taxRate = aerarium.getTaxRateBps(categoryId);
-            tax = Math.mulDiv(amount, taxRate, 10_000);
+    function _credit(Payment memory p, uint256 net) internal override {
+        if (p.kind == 0) {
+            accountRevenue[p.destination] += net;
+        } else if (p.kind == 1) {
+            if (net != 0) _distribute(p.destination, net, msg.sender);
+        } else {
+            tradeProceeds[p.asset][p.destination] += net;
+            pendingTradeProceeds[p.destination] += net;
+            totalTradeDeposited[p.asset] += net;
+            emit TradeProceedsDeposited(p.asset, msg.sender, p.destination, net);
         }
-        uint256 net = amount - tax;
+    }
 
-        if (tax > 0) {
-            revenueToken.forceApprove(address(aerarium), tax);
-            aerarium.receiveTax(tax, categoryId);
+    function claimAll(address[] calldata assets) external nonReentrant returns (uint256 total) {
+        total = _claimAccount(msg.sender);
+        for (uint256 i; i < assets.length; ++i) {
+            total += _claimFor(assets[i], msg.sender);
         }
+    }
 
-        if (net > 0) {
-            _distribute(asset, net, msg.sender);
-        }
-
-        emit PaymentProcessed(paymentId, msg.sender, asset, categoryId, amount, tax, net);
+    function judicialClaimAccount(address from, address to, uint256 amount) external onlyTribunal nonReentrant {
+        require(from != address(0) && to != address(0) && to != address(this), "Invalid account");
+        require(amount > 0 && amount <= accountRevenue[from], "Insufficient accrued revenue");
+        accountRevenue[from] -= amount;
+        accountRevenue[to] += amount;
+        emit JudicialRevenueClaim(address(0), from, to, amount);
     }
 
     /// @dev Called by the registered share token BEFORE balances change. Never sends funds.

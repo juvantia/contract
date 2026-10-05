@@ -60,7 +60,7 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         revenue.registerAsset(address(shares), address(company));
         company.transferTreasuryShares(alice, 60_000 ether);
         company.transferTreasuryShares(bob, 20_000 ether);
-        euroToken.approve(address(company), type(uint256).max);
+        euroToken.approve(address(revenue), type(uint256).max);
         company.depositOperating(1_000 ether, keccak256("revenue"));
         hub = JuvantiaTradeHub(
             address(
@@ -71,8 +71,9 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
             )
         );
         revenue.setEscrow(address(hub), true);
+        revenue.setPaymentSource(address(hub), 1);
         vm.startPrank(bob);
-        euroToken.approve(address(hub), type(uint256).max);
+        euroToken.approve(address(revenue), type(uint256).max);
         vm.stopPrank();
     }
 

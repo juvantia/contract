@@ -37,7 +37,7 @@ contract TribunalSeizureTest is ProtocolFixture {
 
         // Deploy Syndicate Factory
         Syndicate sImpl = new Syndicate();
-        SyndicateFactory sfImpl = new SyndicateFactory(address(sImpl), address(euroToken));
+        SyndicateFactory sfImpl = new SyndicateFactory(address(sImpl), address(euroToken), address(revenue));
         sFactory = SyndicateFactory(
             address(
                 new ERC1967Proxy(
@@ -45,6 +45,7 @@ contract TribunalSeizureTest is ProtocolFixture {
                 )
             )
         );
+        revenue.setPaymentRegistrar(address(sFactory), 8);
     }
 
     // ==========================================
@@ -128,7 +129,7 @@ contract TribunalSeizureTest is ProtocolFixture {
 
         // Deposit operating EURO into Consortium
         euroToken.mint(address(this), 10_000 ether);
-        euroToken.approve(address(consortium), 10_000 ether);
+        euroToken.approve(address(revenue), 10_000 ether);
         consortium.depositOperating(10_000 ether, keccak256("ops-1"));
         assertEq(consortium.operatingBalance(), 10_000 ether);
 
@@ -141,7 +142,7 @@ contract TribunalSeizureTest is ProtocolFixture {
         vm.prank(tribunal);
         consortium.judicialSeizePayment(victim, 3_000 ether);
 
-        assertEq(euroToken.balanceOf(victim), 3_000 ether);
+        assertEq(revenue.accountRevenue(victim), 3_000 ether);
         assertEq(consortium.operatingBalance(), 7_000 ether);
 
         // Non-tribunal cannot seize shares
@@ -204,7 +205,7 @@ contract TribunalSeizureTest is ProtocolFixture {
 
         // Fund syndicate operating
         euroToken.mint(address(this), 5_000 ether);
-        euroToken.approve(address(syndicate), 5_000 ether);
+        euroToken.approve(address(revenue), 5_000 ether);
         syndicate.depositOperating(5_000 ether, keccak256("clan-ops"));
         assertEq(syndicate.operatingBalance(), 5_000 ether);
 
@@ -216,7 +217,7 @@ contract TribunalSeizureTest is ProtocolFixture {
         // Tribunal seizes EURO
         vm.prank(tribunal);
         syndicate.judicialSeizePayment(victim, 2_000 ether);
-        assertEq(euroToken.balanceOf(victim), 2_000 ether);
+        assertEq(revenue.accountRevenue(victim), 2_000 ether);
         assertEq(syndicate.operatingBalance(), 3_000 ether);
 
         // Transfer some APU to syndicate

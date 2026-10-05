@@ -38,7 +38,7 @@ contract DeployCommunities is Script {
 
         // Deploy Syndicate implementation and UUPS Factory
         Syndicate syndicateImpl = new Syndicate();
-        SyndicateFactory syndicateFactoryImpl = new SyndicateFactory(address(syndicateImpl), euroToken);
+        SyndicateFactory syndicateFactoryImpl = new SyndicateFactory(address(syndicateImpl), euroToken, revenueAddress);
         SyndicateFactory syndicateFactory = SyndicateFactory(
             address(
                 new ERC1967Proxy(
@@ -46,6 +46,8 @@ contract DeployCommunities is Script {
                 )
             )
         );
+
+        JuvantiaRevenueDistributor(revenueAddress).setPaymentRegistrar(address(syndicateFactory), 8);
 
         address tribunalAddress = vm.envOr("TRIBUNAL_ADDRESS", address(0));
         if (tribunalAddress != address(0)) {

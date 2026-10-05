@@ -16,11 +16,52 @@ contract ConsortiumFactoryTest is ProtocolFixture {
     uint256 internal authorizerPrivateKey = 0xA11CE_516;
     address internal authorizer;
 
+    function testSeparateOwnersAllocationTaxAndFrozenGovernanceRule() public {
+        _publish("OPERATING_RECEIPT", true, 1, 0, 1000);
+        _publish("CONSORTIUM_DISTRIBUTION", false, 2, 4, 2000);
+        ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("allocation-tax"));
+        (address clone, address token) = factory.createConsortium(voucher, _signVoucher(voucher));
+        Consortium c = Consortium(clone);
+        c.depositOperating(1000 ether, keccak256("receipt-tax"));
+        assertEq(c.operatingBalance(), 900 ether);
+        vm.prank(alice);
+        uint256 proposal = c.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(800 ether));
+        vm.warp(block.timestamp + 1);
+        _publish("CONSORTIUM_DISTRIBUTION", false, 2, 4, 3000);
+        vm.prank(alice);
+        c.castVote(proposal, true);
+        assertEq(c.totalAllocated(), 800 ether);
+        assertEq(c.operatingBalance(), 100 ether);
+        assertEq(c.distributablePool(), 640 ether);
+        assertEq(aerarium.totalCollected(), 260 ether);
+        assertEq(revenue.claimFor(token, alice), 480 ether);
+        assertEq(aerarium.totalCollected(), 260 ether);
+    }
+
+    function testApprovedTreasurySaleNeedsTheBuyerToExecuteAndPay() public {
+        ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("sale-consent"));
+        (address clone, address token) = factory.createConsortium(voucher, _signVoucher(voucher));
+        Consortium c = Consortium(clone);
+        vm.prank(alice);
+        uint256 proposal = c.propose(Consortium.ProposalType.TreasurySale, abi.encode(carol, 1000 ether, 10 ether));
+        vm.prank(alice);
+        c.castVote(proposal, true);
+        vm.expectRevert("Only authenticated buyer");
+        c.executeProposal(proposal);
+        euroToken.mint(carol, 10 ether);
+        vm.startPrank(carol);
+        euroToken.approve(address(revenue), 10 ether);
+        c.executeProposal(proposal);
+        vm.stopPrank();
+        assertEq(JuvantiaAsset(token).balanceOf(carol), 1000 ether);
+        assertEq(revenue.accountRevenue(clone), 10 ether);
+    }
+
     function testOwnerAllocationRequiresVoteThreshold() public {
         ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("allocation-threshold"));
         (address cClone, address token) = factory.createConsortium(voucher, _signVoucher(voucher));
         Consortium consortium = Consortium(cClone);
-        euroToken.approve(cClone, 1_000 ether);
+        euroToken.approve(address(revenue), 1_000 ether);
         consortium.depositOperating(1_000 ether, keccak256("operating-funds"));
         vm.prank(bob);
         uint256 proposal = consortium.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(800 ether));
@@ -41,7 +82,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("allocation-retry"));
         (address cClone,) = factory.createConsortium(voucher, _signVoucher(voucher));
         Consortium consortium = Consortium(cClone);
-        euroToken.approve(cClone, 1_000 ether);
+        euroToken.approve(address(revenue), 1_000 ether);
         consortium.depositOperating(1_000 ether, keccak256("operating-funds"));
         vm.prank(alice);
         uint256 proposal = consortium.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(800 ether));
@@ -70,7 +111,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         ConsortiumFactory.ConsortiumDeploymentVoucher memory voucher = _buildVoucher(keccak256("separate-reserve"));
         (address cClone, address token) = factory.createConsortium(voucher, _signVoucher(voucher));
         Consortium consortium = Consortium(cClone);
-        euroToken.approve(cClone, 1_000 ether);
+        euroToken.approve(address(revenue), 1_000 ether);
         consortium.depositOperating(1_000 ether, keccak256("operating-funds"));
         vm.prank(alice);
         uint256 proposal = consortium.propose(Consortium.ProposalType.RevenueDistribution, abi.encode(800 ether));
@@ -236,7 +277,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         Consortium consortium = Consortium(cClone);
 
         // Deposit 10,000 euro into consortium operating account
-        euroToken.approve(cClone, 10_000 ether);
+        euroToken.approve(address(revenue), 10_000 ether);
         consortium.depositOperating(10_000 ether, keccak256("deposit-1"));
         assertEq(consortium.operatingBalance(), 10_000 ether);
 
@@ -248,7 +289,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         // Magister spends within petty limit (pettyLimit = 1,000 ether)
         vm.prank(alice);
         consortium.spendOperating(carol, 500 ether, keccak256("inv-1"));
-        assertEq(euroToken.balanceOf(carol), 500 ether);
+        assertEq(revenue.accountRevenue(carol), 500 ether);
         assertEq(consortium.operatingBalance(), 9_500 ether);
 
         // Magister exceeds petty limit -> reverts
@@ -285,7 +326,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         (address cClone,) = factory.createConsortium(voucher, sig);
         Consortium consortium = Consortium(cClone);
 
-        euroToken.approve(cClone, 10_000 ether);
+        euroToken.approve(address(revenue), 10_000 ether);
         consortium.depositOperating(10_000 ether, keccak256("deposit-ops"));
 
         // Alice (60k) + Bob (20k) = 80k circulating. Alice holds 60k = 75%
@@ -345,7 +386,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         (address cClone,) = factory.createConsortium(voucher, sig);
         Consortium consortium = Consortium(cClone);
 
-        euroToken.approve(cClone, 30_000 ether);
+        euroToken.approve(address(revenue), 30_000 ether);
         consortium.depositOperating(30_000 ether, keccak256("dep-ops"));
 
         // Alice proposes major spending of 20,000 ether to Carol
@@ -358,7 +399,7 @@ contract ConsortiumFactoryTest is ProtocolFixture {
         vm.prank(alice);
         consortium.castVote(pId, true);
 
-        assertEq(euroToken.balanceOf(carol), 20_000 ether);
+        assertEq(revenue.accountRevenue(carol), 20_000 ether);
         assertEq(consortium.operatingBalance(), 10_000 ether);
     }
 }

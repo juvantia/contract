@@ -6,6 +6,7 @@ import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/Own
 import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
+import {JuvantiaRevenueDistributor} from "../JuvantiaRevenueDistributor.sol";
 import {Syndicate} from "./Syndicate.sol";
 
 /// @notice Factory for deploying gaming Syndicate clones without ERC-20 tokens.
@@ -28,6 +29,7 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
 
     address public immutable syndicateImplementation;
     address public immutable paymentToken;
+    address public immutable revenueDistributor;
 
     address public authorizer;
     address public tribunal;
@@ -39,12 +41,14 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
     event TribunalSet(address indexed oldTribunal, address indexed newTribunal);
     event SyndicateCreated(bytes32 indexed draftId, address indexed syndicate, address indexed primus);
 
-    constructor(address syndicateImpl, address token) {
+    constructor(address syndicateImpl, address token, address distributor) {
         require(syndicateImpl.code.length > 0, "Invalid implementation");
         require(token.code.length > 0, "Invalid token");
         _disableInitializers();
         syndicateImplementation = syndicateImpl;
         paymentToken = token;
+        require(address(JuvantiaRevenueDistributor(distributor).revenueToken()) == token, "Token mismatch");
+        revenueDistributor = distributor;
     }
 
     function initialize(address admin, address authorizerAddr) external initializer {
@@ -129,6 +133,7 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
             .initialize(
                 Syndicate.SyndicateInitParams({
                     token: paymentToken,
+                    distributor: revenueDistributor,
                     primus: voucher.primus,
                     preset: Syndicate.PresetType(voucher.presetType),
                     grades: voucher.gradeCount,
@@ -139,6 +144,7 @@ contract SyndicateFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgradea
                 })
             );
 
+        JuvantiaRevenueDistributor(revenueDistributor).registerPaymentSource(clone, 8);
         syndicateById[voucher.draftId] = clone;
         syndicates.push(clone);
 

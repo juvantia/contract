@@ -5,6 +5,7 @@ import {Initializable} from "@openzeppelin/contracts/proxy/utils/Initializable.s
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {PaymentSettlement} from "../PaymentSettlement.sol";
 import {JuvantiaRevenueDistributor} from "../JuvantiaRevenueDistributor.sol";
 
 /// @notice Consortium operating treasury and governed funding of owners' revenue earnings.
@@ -17,6 +18,8 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
     IERC20 public shareToken;
     JuvantiaRevenueDistributor public revenueDistributor;
     uint256 public totalAllocated;
+
+    uint256 internal settlementNonce;
 
     event OperatingDeposit(address indexed payer, bytes32 indexed referenceId, uint256 amount);
     event OperatingSpent(address indexed recipient, bytes32 indexed referenceId, uint256 amount);
@@ -43,7 +46,7 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
     /// @dev ERC-20 transfers have no receiver hook. Derivation makes even unsolicited direct
     /// payments/claimFor receipts immediately available, without a keeper, sync call or indexer.
     function operatingBalance() public view returns (uint256) {
-        return paymentToken.balanceOf(address(this));
+        return paymentToken.balanceOf(address(this)) + revenueDistributor.accountRevenue(address(this));
     }
 
     /// @notice The second account is reserved in RevenueDistributor, outside operating custody.
@@ -69,9 +72,12 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
 
     function depositOperating(uint256 amount, bytes32 referenceId) external nonReentrant {
         require(amount > 0, "Zero amount");
-        uint256 beforeBalance = paymentToken.balanceOf(address(this));
-        paymentToken.safeTransferFrom(msg.sender, address(this), amount);
-        require(paymentToken.balanceOf(address(this)) - beforeBalance == amount, "Incorrect deposit");
+        revenueDistributor.payFor(
+            PaymentSettlement.Payment(
+                referenceId, keccak256("OPERATING_RECEIPT"), 0, 0, address(this), address(0), amount, 0, 0
+            ),
+            msg.sender
+        );
         emit OperatingDeposit(msg.sender, referenceId, amount);
     }
 
@@ -82,23 +88,67 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
 
     /// @dev Must only be called by an approved revenue-distribution proposal.
     function _allocateDistributable(uint256 amount) internal {
+        _allocateDistributable(amount, 0, 0, 0);
+    }
+
+    function _allocateDistributable(uint256 amount, uint256 revision, uint256 issuedAt, uint256 expiresAt) internal {
         require(
             revenueDistributor.revenueTreasuries(address(shareToken)) == address(this), "Unregistered revenue treasury"
         );
         require(amount > 0 && amount <= operatingBalance(), "Insufficient operating funds");
         uint256 supply = circulatingSupply();
         require(supply > 0, "No circulating shares");
+        revenueDistributor.claimAccountFor(address(this));
         paymentToken.forceApprove(address(revenueDistributor), amount);
-        revenueDistributor.distributeRevenue(address(shareToken), amount);
+        revenueDistributor.payFor(
+            PaymentSettlement.Payment(
+                keccak256(abi.encode(address(this), ++settlementNonce)),
+                keccak256("CONSORTIUM_DISTRIBUTION"),
+                revision,
+                1,
+                address(shareToken),
+                address(0),
+                amount,
+                issuedAt,
+                expiresAt
+            ),
+            address(this)
+        );
         totalAllocated += amount;
         emit DistributableAllocated(amount, supply, cumulativeIndex());
     }
 
     /// @dev Must only be called by authorized Magister spending/governance paths.
     function _spendOperating(address recipient, uint256 amount, bytes32 referenceId) internal {
+        _spendOperating(recipient, amount, referenceId, 0, 0, 0);
+    }
+
+    function _spendOperating(
+        address recipient,
+        uint256 amount,
+        bytes32 referenceId,
+        uint256 revision,
+        uint256 issuedAt,
+        uint256 expiresAt
+    ) internal {
         require(recipient != address(0) && recipient != address(this), "Invalid recipient");
         require(amount > 0 && amount <= operatingBalance(), "Insufficient operating funds");
-        paymentToken.safeTransfer(recipient, amount);
+        revenueDistributor.claimAccountFor(address(this));
+        paymentToken.forceApprove(address(revenueDistributor), amount);
+        revenueDistributor.payFor(
+            PaymentSettlement.Payment(
+                referenceId,
+                keccak256("OPERATING_EXPENSE"),
+                revision,
+                0,
+                recipient,
+                address(0),
+                amount,
+                issuedAt,
+                expiresAt
+            ),
+            address(this)
+        );
         emit OperatingSpent(recipient, referenceId, amount);
     }
 

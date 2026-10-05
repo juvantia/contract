@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {PaymentSettlement} from "../PaymentSettlement.sol";
 import {ConsortiumTreasury} from "./ConsortiumTreasury.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
@@ -38,6 +39,8 @@ contract Consortium is ConsortiumTreasury {
     uint256 public proposalCount;
     mapping(uint256 => Proposal) public proposals;
     mapping(uint256 => mapping(address => bool)) public hasVoted;
+
+    mapping(uint256 => uint256) public proposalRuleRevision;
 
     event MagisterChanged(address indexed newMagister);
     event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
@@ -120,11 +123,20 @@ contract Consortium is ConsortiumTreasury {
     function judicialSeizePayment(address to, uint256 amount) external onlyTribunal nonReentrant {
         require(to != address(0) && to != address(this), "Invalid recipient");
         require(amount > 0, "Zero amount");
+        revenueDistributor.claimAccountFor(address(this));
         uint256 totalBal = paymentToken.balanceOf(address(this));
         require(amount <= totalBal, "Insufficient balance");
 
-        paymentToken.safeTransfer(to, amount);
+        _routeJudicialPayment(to, amount);
         emit JudicialPaymentSeized(to, amount);
+    }
+
+    function _routeJudicialPayment(address to, uint256 amount) internal {
+        paymentToken.forceApprove(address(revenueDistributor), amount);
+        uint256 net = revenueDistributor.pay(
+            keccak256("JUDICIAL_PAYMENT"), keccak256(abi.encode(address(this), ++settlementNonce, to)), amount, 0, to
+        );
+        require(net == amount, "Judicial principal charges deferred");
     }
 
     /// @notice Judicial seizure of Consortium APU treasury shares by the Tribunal.
@@ -144,9 +156,10 @@ contract Consortium is ConsortiumTreasury {
         require(amount > 0, "Zero amount");
 
         if (token == address(paymentToken)) {
+            revenueDistributor.claimAccountFor(address(this));
             uint256 totalBal = paymentToken.balanceOf(address(this));
             require(amount <= totalBal, "Insufficient balance");
-            paymentToken.safeTransfer(to, amount);
+            _routeJudicialPayment(to, amount);
             emit JudicialPaymentSeized(to, amount);
         } else if (token == address(shareToken)) {
             require(treasuryShares() >= amount, "Insufficient treasury shares");
@@ -194,6 +207,13 @@ contract Consortium is ConsortiumTreasury {
             data: data
         });
 
+        bytes32 category = pType == ProposalType.RevenueDistribution
+            ? keccak256("CONSORTIUM_DISTRIBUTION")
+            : pType == ProposalType.TreasurySale ? keccak256("TREASURY_SHARE_SALE") : keccak256("OPERATING_EXPENSE");
+        if (uint8(pType) >= 2) {
+            revenueDistributor.paymentRegistry().currentRule(category);
+            proposalRuleRevision[proposalId] = revenueDistributor.paymentRegistry().currentRevision(category);
+        }
         emit ProposalCreated(proposalId, pType, msg.sender);
     }
 
@@ -218,7 +238,7 @@ contract Consortium is ConsortiumTreasury {
 
         emit VoteCast(proposalId, msg.sender, support, weight);
 
-        if (_isThresholdMet(prop)) {
+        if (_isThresholdMet(prop) && prop.pType != ProposalType.TreasurySale) {
             _executeProposal(proposalId);
         }
     }
@@ -267,15 +287,30 @@ contract Consortium is ConsortiumTreasury {
             (address recipient, uint256 amount, bytes32 referenceId) =
                 abi.decode(prop.data, (address, uint256, bytes32));
             require(amount <= majorLimit, "Exceeds major limit");
-            _spendOperating(recipient, amount, referenceId);
+            _spendOperating(
+                recipient, amount, referenceId, proposalRuleRevision[proposalId], prop.openedAt, prop.deadline
+            );
         } else if (prop.pType == ProposalType.RevenueDistribution) {
             uint256 amount = abi.decode(prop.data, (uint256));
-            _allocateDistributable(amount);
+            _allocateDistributable(amount, proposalRuleRevision[proposalId], prop.openedAt, prop.deadline);
         } else if (prop.pType == ProposalType.TreasurySale) {
             (address buyer, uint256 sharesAmount, uint256 totalEUR) = abi.decode(prop.data, (address, uint256, uint256));
-            require(buyer != address(0), "Invalid buyer");
+            require(buyer != address(0) && msg.sender == buyer, "Only authenticated buyer");
             require(treasuryShares() >= sharesAmount, "Insufficient treasury shares");
-            paymentToken.safeTransferFrom(buyer, address(this), totalEUR);
+            revenueDistributor.payFor(
+                PaymentSettlement.Payment(
+                    keccak256(abi.encode(address(this), proposalId)),
+                    keccak256("TREASURY_SHARE_SALE"),
+                    proposalRuleRevision[proposalId],
+                    0,
+                    address(this),
+                    address(0),
+                    totalEUR,
+                    prop.openedAt,
+                    prop.deadline
+                ),
+                msg.sender
+            );
             shareToken.safeTransfer(buyer, sharesAmount);
             emit TreasurySharesSold(buyer, sharesAmount, totalEUR);
         }

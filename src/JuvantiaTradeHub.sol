@@ -8,6 +8,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {PaymentSettlement} from "./PaymentSettlement.sol";
 import {JuvantiaRevenueDistributor} from "./JuvantiaRevenueDistributor.sol";
 
 contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuard {
@@ -29,6 +30,12 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
 
     // Reserved legacy UUPS storage slot. New proceeds are held only by the distributor.
     mapping(address => uint256) private _deprecatedPendingWithdrawals;
+
+    // Appended state; the legacy UUPS slots and Order struct are preserved.
+    mapping(uint256 => uint256) public orderRevision;
+    mapping(uint256 => uint256) public orderOpenedAt;
+    mapping(uint256 => uint256) public orderExpiresAt;
+    uint256 private fillNonce;
 
     event OrderCreated(
         uint256 indexed orderId,
@@ -85,6 +92,10 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
             isActive: true
         });
 
+        orderRevision[orderId] = revenueDistributor.paymentRegistry().currentRevision(keccak256("SHARE_TRADE"));
+        revenueDistributor.paymentRegistry().currentRule(keccak256("SHARE_TRADE"));
+        orderOpenedAt[orderId] = block.timestamp;
+        orderExpiresAt[orderId] = block.timestamp + 7 days;
         emit OrderCreated(orderId, msg.sender, assetToken, amount, pricePerToken);
         return orderId;
     }
@@ -106,14 +117,20 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
             order.isActive = false;
         }
 
-        // Transfer currency from buyer to JuvantiaTradeHub (requires prior approval)
-        uint256 beforeBalance = currencyToken.balanceOf(address(this));
-        currencyToken.safeTransferFrom(msg.sender, address(this), totalCost);
-        require(currencyToken.balanceOf(address(this)) - beforeBalance == totalCost, "Incorrect payment");
-
-        // Forward exact proceeds atomically; only the seller may receive this credit.
-        currencyToken.forceApprove(address(revenueDistributor), totalCost);
-        revenueDistributor.depositTradeProceeds(order.assetToken, order.seller, totalCost);
+        revenueDistributor.payFor(
+            PaymentSettlement.Payment(
+                keccak256(abi.encode(address(this), orderId, ++fillNonce)),
+                keccak256("SHARE_TRADE"),
+                orderRevision[orderId],
+                2,
+                order.seller,
+                order.assetToken,
+                totalCost,
+                orderOpenedAt[orderId],
+                orderExpiresAt[orderId]
+            ),
+            msg.sender
+        );
 
         // Transfer asset tokens to buyer
         revenueDistributor.escrowWithdraw(order.assetToken, order.seller, amount);

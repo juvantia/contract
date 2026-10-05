@@ -19,7 +19,8 @@ contract SyndicateFactoryTest is ProtocolFixture {
         authorizer = vm.addr(authorizerPrivateKey);
 
         syndicateImpl = new Syndicate();
-        SyndicateFactory factoryImpl = new SyndicateFactory(address(syndicateImpl), address(euroToken));
+        SyndicateFactory factoryImpl =
+            new SyndicateFactory(address(syndicateImpl), address(euroToken), address(revenue));
 
         factory = SyndicateFactory(
             address(
@@ -28,6 +29,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
                 )
             )
         );
+        revenue.setPaymentRegistrar(address(factory), 8);
     }
 
     function _signVoucher(SyndicateFactory.SyndicateDeploymentVoucher memory voucher)
@@ -396,7 +398,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
         address clone = factory.createSyndicate(voucher, sig);
         Syndicate syndicate = Syndicate(clone);
 
-        euroToken.approve(clone, 5_000 ether);
+        euroToken.approve(address(revenue), 5_000 ether);
         syndicate.depositOperating(5_000 ether, keccak256("syn-dep"));
         assertEq(syndicate.operatingBalance(), 5_000 ether);
 
@@ -406,7 +408,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
 
         vm.prank(alice);
         syndicate.spendPetty(carol, 200 ether, keccak256("syn-petty-1"));
-        assertEq(euroToken.balanceOf(carol), 200 ether);
+        assertEq(revenue.accountRevenue(carol), 200 ether);
         assertEq(syndicate.operatingBalance(), 4_800 ether);
 
         vm.prank(alice);
@@ -426,6 +428,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
             .initialize(
                 Syndicate.SyndicateInitParams({
                     token: address(euroToken),
+                    distributor: address(revenue),
                     primus: bob,
                     preset: Syndicate.PresetType.DemocraticMass,
                     grades: 6,
@@ -512,7 +515,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
         // 2. Bob pays quota
         deal(address(euroToken), bob, 500 ether);
         vm.prank(bob);
-        euroToken.approve(clone, 200 ether);
+        euroToken.approve(address(revenue), 200 ether);
         vm.prank(bob);
         syndicate.payQuota(colId);
 
@@ -534,7 +537,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
         // 3. Alice pays quota -> 100% complete!
         deal(address(euroToken), alice, 5_000 ether);
         vm.prank(alice);
-        euroToken.approve(clone, 3_200 ether);
+        euroToken.approve(address(revenue), 3_200 ether);
         vm.prank(alice);
         syndicate.payQuota(colId);
 
@@ -566,7 +569,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
         // Bob pays his quota 200 ether
         deal(address(euroToken), bob, 500 ether);
         vm.prank(bob);
-        euroToken.approve(clone, 200 ether);
+        euroToken.approve(address(revenue), 200 ether);
         vm.prank(bob);
         syndicate.payQuota(colId);
 
@@ -592,6 +595,8 @@ contract SyndicateFactoryTest is ProtocolFixture {
         vm.prank(bob);
         syndicate.claimRefund(colId);
 
+        assertEq(revenue.accountRevenue(bob), 200 ether);
+        revenue.claimAccountFor(bob);
         assertEq(euroToken.balanceOf(bob), bobBalBefore + 200 ether);
         assertEq(syndicate.lockedCollectionFunds(), 0);
 

@@ -9,7 +9,7 @@
 ## 🏛️ Description & System Role
 The `contract` repository contains the smart contracts governing Real-World Asset (RWA) tokenization, fractional share trading, and revenue distribution across the Juvantia ecosystem.
 
-The configurable ZeroDev migration is in progress, not deployed. The payment asset is the euro token configured locally through `EURO_TOKEN_ADDRESS` and `EURO_TOKEN_DECIMALS`; request paths do not query token metadata. Do not query or store its symbol. All money uses integer base units. Old economic state and addresses are not migration targets. See [full migration progress](../ZERODEV_MIGRATION_PROGRESS.md).
+The configurable ZeroDev migration is in progress, not deployed. The payment asset is the euro token configured locally through `EURO_TOKEN_ADDRESS` and `EURO_TOKEN_DECIMALS`; payment integrations verify the actual token decimals on chain against configuration. Do not query or store its symbol. All money uses integer base units. Old economic state and addresses are not migration targets. See [full migration progress](../ZERODEV_MIGRATION_PROGRESS.md).
 
 ---
 
@@ -36,21 +36,24 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | **`JuvantiaAsset.sol`** | EIP-1167 Cloneable ERC-20 | Standard RWA asset token contract (18 decimal places, 100,000 total supply per asset). |
 | **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; forwards seller proceeds atomically to RevenueDistributor and has no withdrawal method. Unsold shares retain their seller's revenue rights. |
 | **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
-| **`JuvantiaAerarium.sol`** | Central treasury & tax catalog | Central tax registry (per-category basis points catalog) and owner-authorized spending with onchain purpose logging. |
+| **`JuvantiaAerarium.sol`** | Central budget | Immediate tax custody, registry-delegated tax reads, and owner-authorized spending through Distributor. |
 | **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Operating custody and governed allocation of owners' revenue earnings into RevenueDistributor; read-only views of its distributed reserve. |
 
 Consortium governance/Tribunal gate, Syndicate governance/points and both factories remain required. `ConsortiumTreasuryHarness` is test-only and must never be deployed as a production governance substitute.
 
-### 4. Consortium Ledger Integration
+### 4. Universal Settlement
 
-A factory registers a Consortium's fixed-supply `JuvantiaAsset` with its one-time `IRevenueTreasury` binding. RevenueDistributor validates the treasury's share token and distributor. It excludes attributed treasury shares from the earning balance and distribution denominator, including shares listed in marketplace escrow. Registration cannot be rebound. Ordinary device assets retain their full-supply revenue basis.
+All official non-P2P payments enter RevenueDistributor first. PaymentRegistry is non-upgradeable;
+only its owner publishes versioned rules. Tax immediately enters Aerarium; addressed net and
+commission accrue centrally. Asset net retains the transfer-aware O(1) index, fractional remainders,
+attributed escrow and Consortium treasury exclusion. Consortium allocation has its own tax category;
+governance approves gross and the owners' pool contains net. ServicePayments validates signed invoices
+as a receipt adapter and holds no funds. TradeHub buyers approve/pay Distributor directly. Claims
+include account receipts, pooled owner earnings and trade proceeds through claimAll.
 
-An approved revenue-distribution proposal transfers the exact allocated amount from Consortium operating custody into RevenueDistributor. The second account (`distributablePool`) is a read-only view of pooled revenue minus payouts in that vault. Consortium has no owner payout entry points or secondary accrual ledger. `operatingBalance()` is its actual euro-token custody, so direct ERC-20 payments and device/trade `claimFor` receipts become operating funds immediately. Owners claim through the distributor's existing `claim`/`claimFor`/`claimBatch` with central encumbrance and judicial seizure. Use **owners' revenue earnings** throughout code, documentation and public API. Treasury shares begin earning only after sale; transfer checkpoints preserve previously earned amounts.
-
-### 4a. Unified Trade Proceeds Settlement
-
-All executed TradeHub payments are held and paid by RevenueDistributor. Registered escrows may call `depositTradeProceeds` only with an exact funded deposit. The full amount belongs to the seller and never changes `cumulativeIndex` or incurs a trading tax. `claimable`, `claim`, `claimFor`, `claimBatch`, encumbrance and judicial seizure include these addressed proceeds, even after all shares have been sold. Yield and trade audit totals remain separate; `RevenueClaimed` records the combined payout. TradeHub's `pendingWithdrawals` is a read-only compatibility view over the distributor's aggregate trade balance, and its deprecated mapping slot is reserved for UUPS layout compatibility. Historical balances are not migrated automatically. See [settlement details](REVENUE_SETTLEMENT.md).
+See [PAYMENT_PROTOCOL.md](PAYMENT_PROTOCOL.md) for sources, historical invoice/proposal rules,
+principal refunds, evidence and release preparation. No automatic historical balance migration.
 
 ### 5. Multi-Model Tribunal & Judicial Encumbrance Architecture
 
@@ -75,7 +78,7 @@ No new configurable deployment has been performed. Full deployment requires all 
 - **Compile**: `forge build`
 - **Run Unit Tests**: `forge test`
 - **Configuration**: Solidity 0.8.30, Cancun, optimizer 200, 512 fuzz runs.
-- **Deployment gate**: `DeployJuvantia.s.sol` requires explicit blockchain and euro-token environment variables, but still lacks full community deployment and canonical registry export. Do not broadcast a partial migration as the completed stack.
+- **Deployment gate**: `DeployJuvantia.s.sol` requires explicit blockchain and euro-token environment variables, but prepares full community/source wiring; receipt-verified canonical registry export remains required. Do not broadcast a partial migration as the completed stack.
 - **Confirmation**: Backend verifies the specific successful UserOperation and transaction receipt; no consensus-finality wait, webhook or permanent indexer.
 
 ---
