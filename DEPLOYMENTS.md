@@ -29,15 +29,18 @@ Deployment configuration is supplied at release time through:
 - `BLOCKCHAIN_RPC_URL`
 - `EURO_TOKEN_ADDRESS`
 - `EURO_TOKEN_DECIMALS` in the services, checked against the actual token
-- `PAYMENT_INVOICE_ISSUER_ADDRESS`: public address derived from Core's invoice service key
-- `COMMUNITY_AUTHORIZER_ADDRESS`: public address matching Core's factory-voucher authorizer
+- `PAYMENT_INVOICE_ISSUER_ADDRESS`: public address derived from the single Core service key
+- `COMMUNITY_AUTHORIZER_ADDRESS`: the same Core public address, used by both community factories
 - `TRIBUNAL_ADDRESS`: actual Tribunal authority selected for the stack
 
-Core separately receives the server-only PAYMENT_INVOICE_SIGNING_KEY and
-COMMUNITY_AUTHORIZER_PRIVATE_KEY secrets. Private keys and production configuration must not
-be recorded here. The invoice key only signs off-chain terms; users authorize their own operations.
-It needs no token/native balance to sign. Owner/deployer transactions have a separate gas payer.
-DeployJuvantia.s.sol already grants the chosen public invoice issuer in Registry.
+Core receives one server-only private key: the same 0x-prefixed secret is supplied to both
+PAYMENT_INVOICE_SIGNING_KEY and COMMUNITY_AUTHORIZER_PRIVATE_KEY. These are existing consumer
+settings, not two key pairs. Its one derived public address must be available before deployment
+and supplied to both public address settings above. Private keys and production configuration
+must not be recorded here. This Core key signs invoices and creation vouchers off chain and
+needs no token/native balance. Users authorize their own operations; owner/deployer transactions
+have a separate gas payer. DeployJuvantia.s.sol grants the same Core address in Registry and
+installs it as the authorizer of both factories. See [Core signing](../core/docs/SIGNING.md).
 
 ## Complete deployment inventory
 
@@ -66,8 +69,9 @@ Source bits are TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8 and Aer
    not the tax catalog. Include the separately taxed owners' allocation operation.
    Existing private full-principal mechanisms retain their domain requirements.
    No catalog of concrete services/categories is prescribed by this deployment record.
-4. Check the permitted issuer and matching Core secret; both factory authorizers must match
-   their configured Core service identity. Core keys do not receive owner/Tribunal authority.
+4. Check that both Core signing settings contain the same key and that Registry's permitted
+   issuer and both factory authorizers equal its single derived address. The Core key receives
+   no owner/Tribunal authority. Rotation must update both Core settings, Registry and both factories.
 5. Resolve the payment-model differences and known Core receipt/consent/configuration/cutover gaps
    in Core readiness before declaring the whole server layer operational.
 6. Exercise actual paid invoice/entitlement, civic fee/factory creation, trade, Consortium

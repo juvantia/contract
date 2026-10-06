@@ -78,7 +78,9 @@ Invoice fields are paymentId, categoryId, revision, kind, destination, asset, gr
 expiresAt, payer and source. paymentId identifies the payment; destination separately binds
 the beneficiary. The address cannot be inferred from the ID.
 
-Core's issuer signs off chain. The payer authorizes the actual transaction.
+The single Core service key signs invoices and factory creation vouchers off chain.
+Registry issuer and both factory authorizers use its same public address; see
+[Core signing](../core/docs/SIGNING.md). The payer authorizes the actual transaction.
 Protecting category/revision from tampering is not a classification approval by Core.
 Only Registry-authorized invoice issuers are accepted.
 

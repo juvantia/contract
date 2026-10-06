@@ -108,16 +108,18 @@ No automatic historical balance migration.
 
 ### Core service signatures
 
-Core's invoice issuer signs EIP-712 invoice data off chain before payment. The user signs the
+Core uses one service key for off-chain invoices and community creation vouchers. Invoice issuer
+and factory authorizer are verification roles of the same Core identity. The user signs the
 actual wallet operation; Distributor verifies issuer authorization on chain. The issuer does
 not submit citizen transactions and is not the owner or Tribunal. Public pay and earnings
 claims require no Core signature. The older backend-signed claim model is superseded.
 
-PAYMENT_INVOICE_SIGNING_KEY is a server-only secret. PAYMENT_INVOICE_ISSUER_ADDRESS is its
-derived public deployment address; DeployJuvantia.s.sol already allows it in Registry.
-The separate COMMUNITY_AUTHORIZER_PRIVATE_KEY/COMMUNITY_AUTHORIZER_ADDRESS pair authorizes
-factory vouchers after required draft checks/consents. Neither key belongs in source, logs,
-public config or responses. Off-chain signing consumes no gas and needs no funded signer balance.
+PAYMENT_INVOICE_SIGNING_KEY and COMMUNITY_AUTHORIZER_PRIVATE_KEY contain the same server-only
+secret. PAYMENT_INVOICE_ISSUER_ADDRESS and COMMUNITY_AUTHORIZER_ADDRESS contain its same derived
+public address. DeployJuvantia.s.sol grants that address in Registry and configures it in both
+factories. The key signs factory vouchers after required draft checks/consents and belongs only
+in Core secret configuration, never source, logs, public config or responses. Off-chain signing
+consumes no gas and needs no funded signer balance. Rotation updates Registry and both factories.
 See [Core signing roles](../core/docs/SIGNING.md).
 
 ### 5. Multi-Model Tribunal & Judicial Encumbrance Architecture
