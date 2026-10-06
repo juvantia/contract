@@ -57,6 +57,8 @@ The seller sets price, category and one beneficiary. Categories select tax BPS o
 Core confirms amount/payer; Custodia reviews economic classification after payment.
 There is no additional commission deduction. A Civitas service named a commission remains
 a seller-priced service. Shared sale income goes to a Consortium, followed by separate allocation.
+An organization's beneficiary is its factory-created contract address. A representative does
+not assign or replace that address; owners elect spending authority on chain.
 Current commission/Registry-price fields and hardcoded service categories require alignment;
 see [implementation differences](../core/docs/PAYMENT_IMPLEMENTATION.md). The source behavior
 below is a technical reference, not an expansion of the clarified business requirements.

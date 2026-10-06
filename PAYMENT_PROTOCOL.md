@@ -98,6 +98,12 @@ implemented merely by accepting destination/payer fields.
 
 ## Organization operations and existing principal routes
 
+The factory creates the organization's contract address at incorporation. That established
+address receives the organization's commercial net; the representative does not assign it.
+Owners elect the representative on chain, and the organization contract enforces spending
+authority. A new representative retains the same organization address. The Consortium share
+token is a separate factory-created contract, not its operating account.
+
 Consortium receives addressed commercial net into its operating funds.
 Its separate governed allocation approves gross and reserves net for eligible owners inside
 Distributor. The allocation has its own operation tax. Treasury shares are excluded.
