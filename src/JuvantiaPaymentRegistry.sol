@@ -13,10 +13,7 @@ contract JuvantiaPaymentRegistry is Ownable {
         bool publicAccess;
         uint8 destinations; // bits: account=1, asset pool=2, addressed trade=4
         uint16 taxBps;
-        uint16 commissionBps;
-        uint256 fixedCommission;
-        uint256 servicePrice; // optional fixed civic price; distinct from commission
-        address commissionRecipient;
+        uint256 servicePrice; // optional fixed civic service price
         uint256 sourceRoles; // TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8, Aerarium=16
     }
 
@@ -38,13 +35,9 @@ contract JuvantiaPaymentRegistry is Ownable {
     function publish(bytes32 categoryId, Rule calldata rule) external onlyOwner returns (uint256 revision) {
         require(categoryId != bytes32(0), "Invalid category");
         require(rule.destinations > 0 && rule.destinations <= 7, "Invalid destinations");
-        require(uint256(rule.taxBps) + rule.commissionBps <= 10_000, "Invalid rates");
+        require(rule.taxBps <= 10_000, "Invalid rates");
         require(rule.publicAccess || rule.sourceRoles != 0, "Missing source policy");
         require(!rule.publicAccess || rule.destinations & 4 == 0, "Private trade route");
-        require(
-            (rule.commissionBps == 0 && rule.fixedCommission == 0) || rule.commissionRecipient != address(0),
-            "Missing commission recipient"
-        );
         revision = currentRevision[categoryId] + 1;
         if (revision > 1) versions[categoryId][revision - 1].supersededAt = uint64(block.timestamp);
         versions[categoryId][revision] = Version(rule, uint64(block.timestamp), 0);
@@ -87,15 +80,10 @@ contract JuvantiaPaymentRegistry is Ownable {
         return version.rule;
     }
 
-    function calculate(Rule memory rule, uint256 gross)
-        public
-        pure
-        returns (uint256 tax, uint256 commission, uint256 net)
-    {
+    function calculate(Rule memory rule, uint256 gross) public pure returns (uint256 tax, uint256 net) {
         require(gross > 0, "Invalid payment");
+        require(rule.taxBps <= 10_000, "Invalid rates");
         tax = Math.mulDiv(gross, rule.taxBps, 10_000);
-        commission = Math.mulDiv(gross, rule.commissionBps, 10_000) + rule.fixedCommission;
-        require(tax + commission <= gross, "Insufficient gross");
-        net = gross - tax - commission;
+        net = gross - tax;
     }
 }

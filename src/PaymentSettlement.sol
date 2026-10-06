@@ -59,7 +59,6 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
         address asset,
         uint256 gross,
         uint256 tax,
-        uint256 commission,
         uint256 net
     );
     event PaymentProcessed(
@@ -192,7 +191,7 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
         // Raw calls cannot choose a historical rate, even for public commercial categories.
         require(p.revision == 0 || sourceRoles[msg.sender] != 0 || p.issuedAt != 0, "Invalid revision");
         if (p.revision == 0) p.revision = paymentRegistry.currentRevision(p.categoryId);
-        (uint256 tax, uint256 commission, uint256 remainder_) = paymentRegistry.calculate(rule, p.gross);
+        (uint256 tax, uint256 remainder_) = paymentRegistry.calculate(rule, p.gross);
         net = remainder_;
         _validateCredit(p);
         paid[payer][p.paymentId] = true;
@@ -203,25 +202,13 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
             revenueToken.forceApprove(address(aerarium), tax);
             aerarium.receiveTax(tax, p.categoryId);
         }
-        if (commission != 0) accountRevenue[rule.commissionRecipient] += commission;
         if (net != 0) _credit(p, net);
-        _emitSettlement(p, payer, tax, commission, net);
+        _emitSettlement(p, payer, tax, net);
     }
 
-    function _emitSettlement(Payment memory p, address payer, uint256 tax, uint256 commission, uint256 net) private {
+    function _emitSettlement(Payment memory p, address payer, uint256 tax, uint256 net) private {
         emit Settlement(
-            p.paymentId,
-            payer,
-            p.destination,
-            msg.sender,
-            p.categoryId,
-            p.revision,
-            p.kind,
-            p.asset,
-            p.gross,
-            tax,
-            commission,
-            net
+            p.paymentId, payer, p.destination, msg.sender, p.categoryId, p.revision, p.kind, p.asset, p.gross, tax, net
         );
         if (p.kind == 1) emit PaymentProcessed(p.paymentId, payer, p.destination, p.categoryId, p.gross, tax, net);
     }

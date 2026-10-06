@@ -11,17 +11,16 @@ The category selects tax BPS only. Core confirms amount/payer without judging th
 Custodia reviews classification after payment. No separate settlement commission is required.
 A Civitas service named a commission is still an ordinary seller-priced service.
 
-Current JuvantiaPaymentRegistry.Rule additionally contains commissionBps, fixedCommission,
-commissionRecipient, servicePrice, destination masks and source permissions.
-PaymentSettlement calculates gross - tax - commission and can enforce servicePrice.
-These extra price/commission features differ from the clarified requirement, which is
+The additional commission configuration, calculation and recipient crediting are removed.
+Registry.calculate returns tax and net only. Settlement emits gross, tax and net.
 tax = floor(gross * taxBps / 10000), net = gross - tax.
-Zero commission settings suppress the deductions but do not remove the configuration surface.
+Current Rule still contains servicePrice, destination masks and source permissions.
+Category-linked price enforcement remains a separate implementation difference.
 Zero servicePrice removes on-chain price enforcement, but Core's current creation-service pricing
 then refuses to issue a quote. Implementation alignment is required before activation.
 See [current backend differences](../core/docs/PAYMENT_IMPLEMENTATION.md).
 
-No new deployment has been receipt-verified. This documentation update changes no Solidity behavior.
+No new deployment has been receipt-verified. The reduced Rule tuple and Settlement event require matching ABIs and a fresh configured-stack deployment; no upgrade or on-chain broadcast is performed by this change.
 
 ## Settlement and custody
 
@@ -121,7 +120,7 @@ mechanisms. A general commercial refund policy is outside the clarified scope.
 ## Receipts and release
 
 Settlement emits paymentId, debited payer, beneficiary, source, category/revision, route/asset
-and actual gross/tax/commission/net. Commission is a current event field, not a required deduction.
+and actual gross/tax/net. Gross equals tax plus net.
 
 Core service confirmation verifies the exact successful ERC-4337 UserOperation/canonical receipt,
 atomic Kernel calldata, and matching ServicePaid/Settlement within its log interval.

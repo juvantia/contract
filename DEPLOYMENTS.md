@@ -7,8 +7,9 @@ stack. The user is still selecting the network. No on-chain transactions were br
 settlement implementation or this documentation update. No deployment addresses/blocks are asserted.
 
 The clarified tax-only, seller-priced model is documented in
-[Core PAYMENTS.md](../core/docs/PAYMENTS.md). Current source still supports extra commissions,
-category-linked creation prices and some hardcoded service categories. Beneficiary association
+[Core PAYMENTS.md](../core/docs/PAYMENTS.md). Additional commissions are removed from source,
+ABIs, reviews and public DTOs. Category-linked creation prices and some hardcoded service categories
+remain implementation differences. Beneficiary association
 and organizational payer identity also require work. These differences are described in
 [PAYMENT_IMPLEMENTATION.md](../core/docs/PAYMENT_IMPLEMENTATION.md); they are not fixed by this update.
 Activation requires model alignment as well as receipt-verified deployment.
@@ -75,7 +76,8 @@ Source bits are TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8 and Aer
    unchanged historical invoices, replay/expiry failure and recovery.
 
 Net is a central credit until collection; tax reaches Aerarium immediately.
-Current commission fields are implementation differences, not approved extra deductions.
+Rule tuple and Settlement event signatures changed. Export matching ABIs for all services and
+use a fresh configured-stack deployment; the non-upgradeable Registry is not upgraded in place.
 Consortium allocation has its own tax; collecting existing credits has no new levy.
 TradeHub.pendingWithdrawals is a compatibility read, and TradeHub has no euro withdraw route.
 

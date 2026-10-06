@@ -76,8 +76,7 @@ abstract contract ProtocolFixture is Test {
         internal
     {
         registry.publish(
-            keccak256(bytes(category)),
-            JuvantiaPaymentRegistry.Rule(true, publicAccess, destinations, tax, 0, 0, 0, address(0), roles)
+            keccak256(bytes(category)), JuvantiaPaymentRegistry.Rule(true, publicAccess, destinations, tax, 0, roles)
         );
     }
 }

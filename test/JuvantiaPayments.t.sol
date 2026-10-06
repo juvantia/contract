@@ -100,32 +100,33 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         assertEq(revenue.accountRevenue(bob), 10 ether);
     }
 
-    function testUnknownInactiveAndInsufficientGrossRevertAtomically() public {
+    function testUnknownInactiveAndInvalidTaxRevertAtomically() public {
         vm.expectRevert("Unknown rule");
         revenue.pay(bytes32(uint256(1)), bytes32(uint256(2)), 1, 0, alice);
-        JuvantiaPaymentRegistry.Rule memory rule = JuvantiaPaymentRegistry.Rule(false, true, 1, 0, 0, 0, 0, bob, 0);
+        JuvantiaPaymentRegistry.Rule memory rule = JuvantiaPaymentRegistry.Rule(false, true, 1, 0, 0, 0);
         registry.publish(keccak256("OFF"), rule);
         vm.expectRevert("Inactive rule");
         revenue.pay(keccak256("OFF"), bytes32(uint256(2)), 1, 0, alice);
         rule.active = true;
-        rule.fixedCommission = 2;
-        registry.publish(keccak256("SMALL"), rule);
-        vm.expectRevert("Insufficient gross");
-        revenue.pay(keccak256("SMALL"), bytes32(uint256(2)), 1, 0, alice);
+        rule.taxBps = 10001;
+        vm.expectRevert("Invalid rates");
+        registry.publish(keccak256("INVALID_TAX"), rule);
+        assertEq(registry.currentRevision(keccak256("INVALID_TAX")), 0);
         assertFalse(revenue.paid(address(this), bytes32(uint256(2))));
     }
 
-    function testFuzzConservationAndRounding(uint96 raw, uint16 tax_, uint16 commission_) public {
-        uint256 gross = bound(raw, 10, 100_000 ether);
-        uint16 tax = uint16(bound(tax_, 0, 4000));
-        uint16 commission = uint16(bound(commission_, 0, 4000));
-        registry.publish(
-            keccak256("COMMERCIAL"), JuvantiaPaymentRegistry.Rule(true, true, 1, tax, commission, 1, 0, carol, 0)
-        );
+    function testFuzzConservationAndRounding(uint96 raw, uint16 tax_) public {
+        uint256 gross = bound(raw, 1, 100_000 ether);
+        uint16 tax = uint16(bound(tax_, 0, 10000));
+        registry.publish(keccak256("COMMERCIAL"), JuvantiaPaymentRegistry.Rule(true, true, 1, tax, 0, 0));
         uint256 beforeBalance = euroToken.balanceOf(address(this));
         revenue.pay(keccak256("COMMERCIAL"), keccak256("conservation"), gross, 0, alice);
         assertEq(beforeBalance - euroToken.balanceOf(address(this)), gross);
-        assertEq(revenue.accountRevenue(alice) + revenue.accountRevenue(carol) + aerarium.totalCollected(), gross);
+        uint256 expectedTax = gross * tax / 10000;
+        assertEq(revenue.accountRevenue(alice), gross - expectedTax);
+        assertEq(aerarium.totalCollected(), expectedTax);
+        assertEq(revenue.accountRevenue(carol), 0);
+        assertEq(revenue.accountRevenue(alice) + aerarium.totalCollected(), gross);
         assertEq(euroToken.balanceOf(address(revenue)) + euroToken.balanceOf(address(aerarium)), gross);
     }
 

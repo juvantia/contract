@@ -42,7 +42,7 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; forwards seller proceeds atomically to RevenueDistributor and has no withdrawal method. Unsold shares retain their seller's revenue rights. |
 | **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
 | **`JuvantiaAerarium.sol`** | Central budget | Immediate tax custody, registry-delegated tax reads, and owner-authorized spending through Distributor. |
-| **`JuvantiaPaymentRegistry.sol`** | Non-upgradeable rule registry | Owner-published category revisions, taxes, percentage/fixed commissions, permitted destinations/sources, optional fixed prices and invoice issuer grants. |
+| **`JuvantiaPaymentRegistry.sol`** | Non-upgradeable rule registry | Owner-published category revisions, taxes, permitted destinations/sources, optional fixed prices and invoice issuer grants. |
 | **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Operating custody and governed allocation of owners' revenue earnings into RevenueDistributor; read-only views of its distributed reserve. |
 | **`community/Consortium.sol` / `Syndicate.sol`** | Cloneable organizations | Authorized operating settlement, Consortium owners' allocation, Syndicate quotas/refunds, governance and Tribunal enforcement. |
@@ -59,13 +59,13 @@ There is no additional commission deduction. A Civitas service named a commissio
 a seller-priced service. Shared sale income goes to a Consortium, followed by separate allocation.
 An organization's beneficiary is its factory-created contract address. A representative does
 not assign or replace that address; owners elect spending authority on chain.
-Current commission/Registry-price fields and hardcoded service categories require alignment;
+Current Registry-price fields and hardcoded service categories still require alignment;
 see [implementation differences](../core/docs/PAYMENT_IMPLEMENTATION.md). The source behavior
 below is a technical reference, not an expansion of the clarified business requirements.
 
 All official non-P2P payments enter RevenueDistributor first. PaymentRegistry is non-upgradeable;
-only its owner publishes versioned rules. Tax immediately enters Aerarium; addressed net and
-commission accrue centrally. Asset net retains the transfer-aware O(1) index, fractional remainders,
+only its owner publishes versioned rules. Tax immediately enters Aerarium; addressed net
+accrues centrally. Asset net retains the transfer-aware O(1) index, fractional remainders,
 attributed escrow and Consortium treasury exclusion. Consortium allocation has its own tax category;
 governance approves gross and the owners' pool contains net. ServicePayments validates signed invoices
 as a receipt adapter and holds no funds. TradeHub buyers approve/pay Distributor directly. Claims
@@ -77,13 +77,12 @@ No automatic historical balance migration.
 
 ### Current implementation and integration boundaries
 
-- Gross includes tax and commission: tax=floor(gross*taxBps/10000),
-  commission=floor(gross*commissionBps/10000)+fixedCommission, net=gross-tax-commission.
-  These extra commissions and category-linked prices are current implementation differences,
-  not clarified requirements. The required ordinary-sale formula is net=gross-tax.
+- Gross includes tax: tax=floor(gross*taxBps/10000), net=gross-tax. Additional commission
+  configuration, deduction and recipient crediting are removed. Registry-linked service prices
+  remain a separate implementation difference.
 - Registry is financial truth; saving Admin drafts publishes no rules. Unknown/inactive
   categories fail closed, and zero-tax rules must be explicitly published.
-- Tax enters Aerarium immediately; addressed net/commissions accrue inside Distributor.
+- Tax enters Aerarium immediately; addressed net accrue inside Distributor.
   Asset-pool net uses transfer-aware accrual; trade proceeds belong to the particular seller.
   Collection of already-accrued funds adds no new levy.
 - Consortium allocation is a distinct taxable operation under CONSORTIUM_DISTRIBUTION.
@@ -98,8 +97,8 @@ No automatic historical balance migration.
 - Only configured sources can use delegated payer debits/private categories. Every such source
   must authenticate its real payer. Source roles: TradeHub=1, ServicePayments=2,
   Consortium=4, Syndicate=8, Aerarium=16.
-- One payment currently has one principal net recipient/pool, an optional commission recipient and tax.
-  The clarified requirement removes the extra commission. Arbitrary sale splits are not required.
+- One payment has one principal net recipient/pool and budget tax. No additional deduction
+  recipient or arbitrary sale split is supported.
 - Existing refundable Syndicate quotas/refunds and judicial principal routes require private
   published zero-charge rules. A new commercial refund policy is not implemented.
 - Arbitrary external ERC-20 transfers cannot be globally blocked. Financial routing alone
