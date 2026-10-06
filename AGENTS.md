@@ -9,7 +9,12 @@
 ## 🏛️ Description & System Role
 The `contract` repository contains the smart contracts governing Real-World Asset (RWA) tokenization, fractional share trading, and revenue distribution across the Juvantia ecosystem.
 
-The configurable ZeroDev migration is in progress, not deployed. The payment asset is the euro token configured locally through `EURO_TOKEN_ADDRESS` and `EURO_TOKEN_DECIMALS`; payment integrations verify the actual token decimals on chain against configuration. Do not query or store its symbol. All money uses integer base units. Old economic state and addresses are not migration targets. See [full migration progress](../ZERODEV_MIGRATION_PROGRESS.md).
+The configurable ZeroDev migration is in progress, not deployed. The user is still selecting the
+network; do not assume historic Arc/Chiado profiles are the selected deployment target.
+The payment asset is configured through EURO_TOKEN_ADDRESS and EURO_TOKEN_DECIMALS; verify
+actual token decimals on chain. Do not query/store its symbol. All money uses integer base units.
+Old economic state and addresses are not migration targets. See [DEPLOYMENTS.md](DEPLOYMENTS.md)
+and [Core activation readiness](../core/docs/DEPLOYMENT_READINESS.md).
 
 ---
 
@@ -37,8 +42,11 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; forwards seller proceeds atomically to RevenueDistributor and has no withdrawal method. Unsold shares retain their seller's revenue rights. |
 | **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
 | **`JuvantiaAerarium.sol`** | Central budget | Immediate tax custody, registry-delegated tax reads, and owner-authorized spending through Distributor. |
+| **`JuvantiaPaymentRegistry.sol`** | Non-upgradeable rule registry | Owner-published category revisions, taxes, percentage/fixed commissions, permitted destinations/sources, optional fixed prices and invoice issuer grants. |
 | **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Operating custody and governed allocation of owners' revenue earnings into RevenueDistributor; read-only views of its distributed reserve. |
+| **`community/Consortium.sol` / `Syndicate.sol`** | Cloneable organizations | Authorized operating settlement, Consortium owners' allocation, Syndicate quotas/refunds, governance and Tribunal enforcement. |
+| **`community/ConsortiumFactory.sol` / `SyndicateFactory.sol`** | UUPS factories / EIP-1167 clones | Community creation voucher authorization, instance initialization, asset/source registration and receipt events. |
 
 Consortium governance/Tribunal gate, Syndicate governance/points and both factories remain required. `ConsortiumTreasuryHarness` is test-only and must never be deployed as a production governance substitute.
 
@@ -54,6 +62,51 @@ include account receipts, pooled owner earnings and trade proceeds through claim
 
 See [PAYMENT_PROTOCOL.md](PAYMENT_PROTOCOL.md) for sources, historical invoice/proposal rules,
 principal refunds, evidence and release preparation. No automatic historical balance migration.
+
+### Financial and integration boundaries
+
+- Gross includes tax and commission: tax=floor(gross*taxBps/10000),
+  commission=floor(gross*commissionBps/10000)+fixedCommission, net=gross-tax-commission.
+  A fixed civic price is separate from fixed commission.
+- Registry is financial truth; saving Admin drafts publishes no rules. Unknown/inactive
+  categories fail closed, and zero-charge rules must be explicitly published.
+- Tax enters Aerarium immediately; addressed net/commissions accrue inside Distributor.
+  Asset-pool net uses transfer-aware accrual; trade proceeds belong to the particular seller.
+  Collection of already-accrued funds adds no new levy.
+- Consortium allocation is a distinct taxable operation under CONSORTIUM_DISTRIBUTION.
+  Governance approves gross and eligible owners accrue net. The second account is in
+  Distributor, outside operating custody. Treasury shares, including attributed escrow,
+  earn nothing from that pool. There is no local Consortium owner payout/index.
+- Use **owners' revenue earnings** in documents, identifiers and product copy.
+- Public custom contracts settle their own funds through pay(categoryId, paymentId, gross,
+  kind, destination), without individual source registration or a Core signature.
+  They need a published public category, unique ID and the configured token/decimals.
+  Account recipients need no registration; custom owner pools require compatible registered assets.
+- Only configured sources can use delegated payer debits/private categories. Every such source
+  must authenticate its real payer. Source roles: TradeHub=1, ServicePayments=2,
+  Consortium=4, Syndicate=8, Aerarium=16.
+- One payment has one principal net recipient/pool, an optional commission recipient and tax.
+  Arbitrary multi-recipient percentage splits are not implemented.
+- Existing refundable Syndicate quotas/refunds and judicial principal routes require private
+  published zero-charge rules. A new commercial refund policy is not implemented.
+- Arbitrary external ERC-20 transfers cannot be globally blocked. Financial routing alone
+  does not establish official-service status, hardware entitlement or other obligations.
+- TradeHub.pendingWithdrawals is a compatibility read of Distributor sale proceeds.
+  TradeHub has no withdraw method; its old private mapping remains a reserved UUPS slot.
+
+### Core service signatures
+
+Core's invoice issuer signs EIP-712 invoice data off chain before payment. The user signs the
+actual wallet operation; Distributor verifies issuer authorization on chain. The issuer does
+not submit citizen transactions and is not the owner or Tribunal. Public pay and earnings
+claims require no Core signature. The older backend-signed claim model is superseded.
+
+PAYMENT_INVOICE_SIGNING_KEY is a server-only secret. PAYMENT_INVOICE_ISSUER_ADDRESS is its
+derived public deployment address; DeployJuvantia.s.sol already allows it in Registry.
+The separate COMMUNITY_AUTHORIZER_PRIVATE_KEY/COMMUNITY_AUTHORIZER_ADDRESS pair authorizes
+factory vouchers after required draft checks/consents. Neither key belongs in source, logs,
+public config or responses. Off-chain signing consumes no gas and needs no funded signer balance.
+See [Core signing roles](../core/docs/SIGNING.md).
 
 ### 5. Multi-Model Tribunal & Judicial Encumbrance Architecture
 
@@ -71,6 +124,12 @@ To enforce legal decisions, court verdicts, and restitution onchain without comp
 
 No new configurable deployment has been performed. Full deployment requires all community contracts/factories, role wiring, ABI/address/deployment-block registry export and receipt-verified smoke tests. Never invent addresses or mark successful compilation as deployment.
 
+Settlement source/tests are implemented; this does not establish complete Core readiness.
+Core still has incomplete consent verification, community deployment receipt/caller checks,
+historic/dummy configuration fallbacks and chain-cutover schema constraints. These are documented
+gaps, not fixed by this documentation update; see [readiness](../core/docs/DEPLOYMENT_READINESS.md).
+Native binary/OTA publication is separate from server/contract activation.
+
 ---
 
 ## 🛠️ Developer Workflow Commands (Foundry)
@@ -87,3 +146,5 @@ No new configurable deployment has been performed. Full deployment requires all 
 When modifying upgradeable contracts (`JuvantiaAssetFabrica`, `JuvantiaTradeHub`):
 - **Never modify existing storage variable order**. Always append new state variables to the bottom of the contract storage layout to prevent storage collisions during upgrades.
 - **Always update the canonical deployment registry and [`DEPLOYMENTS.md`](DEPLOYMENTS.md)** immediately after receipt-verified deployments or upgrades.
+- Release preparation/status may be documented before deployment, but addresses, transactions,
+  deployment blocks and "live" claims must appear only with verified receipt evidence.
