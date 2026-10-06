@@ -14,7 +14,8 @@ and organizational payer identity also require work. These differences are descr
 [PAYMENT_IMPLEMENTATION.md](../core/docs/PAYMENT_IMPLEMENTATION.md); they are not fixed by this update.
 Activation requires model alignment as well as receipt-verified deployment.
 Core's device service recipient switching uses authoritative published renter_id (MVP physical
-persons); its publication at minute boundaries remains pending. All agreement payments always
+persons); scheduled publication, recovery and recipient snapshots are implemented in Core.
+Live acceptance against the chosen chain remains after receipt-verified deployment. All agreement payments always
 earn owners independently of current renter/operator or payment time. See [leasing requirements](../core/docs/LEASING.md)
 and [implementation TODO](../core/docs/PAYMENT_TODO.md); documentation does not activate routing.
 

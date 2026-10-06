@@ -64,7 +64,8 @@ current renter/operator or payment time. For device services Core uses authorita
 renter_id: verified physical-person account if present, owners' pool otherwise. Leasing maintains
 that field at minute boundaries; the service selector does not recheck lease payments/dates.
 Core signs the recipient snapshot; Distributor does not read Core's rental state.
-Core's recipient switching is still pending. See [leasing requirements](../core/docs/LEASING.md)
+Core's recipient switching, agreement snapshots and scoped workshop/Link access are implemented.
+Actual monetary acceptance still requires the selected chain and receipt-verified activation. See [leasing requirements](../core/docs/LEASING.md)
 and [implementation TODO](../core/docs/PAYMENT_TODO.md).
 Current Registry-price fields and hardcoded service categories still require alignment;
 see [implementation differences](../core/docs/PAYMENT_IMPLEMENTATION.md). The source behavior
