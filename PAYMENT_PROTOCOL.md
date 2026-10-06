@@ -1,85 +1,127 @@
-# Juvantia settlement protocol
+# Current on-chain payment interface
 
-All official non-P2P euro payments enter JuvantiaRevenueDistributor first. The non-upgradeable
-JuvantiaPaymentRegistry supplies versioned, owner-published rules. PostgreSQL stores administrative
-drafts and labels; it cannot activate a financial rule. Unknown/inactive types fail closed. Zero tax
-is valid only when explicitly published. Gross includes tax and percentage/fixed commission:
-`tax=floor(gross*taxBps/10000)`, `commission=floor(gross*commissionBps/10000)+fixedCommission`,
-`net=gross-tax-commission`. Insufficient gross reverts atomically. A fixed civic service price is
-separate from commission and, when nonzero, must equal gross.
+Business requirements are maintained in [Core PAYMENTS.md](../core/docs/PAYMENTS.md) and
+[Universal Payment Protocol](https://app.notion.com/p/3f1fbac38ebd81b9862bd6594308ddb1).
+This document describes current Solidity interfaces and their limits, not a catalog of services.
 
-Tax goes immediately to Aerarium. Commission and addressed net remain in Distributor's
-`accountRevenue(account)`. Asset net uses the existing transfer-aware O(1) index: no shareholder
-loop, unchanged remainder/checkpoint mathematics, attributed share escrow and excluded Consortium
-treasury shares. Trade net remains seller-specific in its separate asset ledger. `claimAll(assets)`
-withdraws addressed credits plus pooled earnings and trade proceeds; existing asset claims remain.
-`claimAccountFor(account)` is permissionless but pays only the beneficiary. Encumbrance also blocks
-addressed claims; Tribunal can reassign these credits with `judicialClaimAccount`.
+## Requirement and implementation boundary
 
-## Integration
+The seller sets gross price, selects a category and supplies one beneficiary.
+The category selects tax BPS only. Core confirms amount/payer without judging the classification;
+Custodia reviews classification after payment. No separate settlement commission is required.
+A Civitas service named a commission is still an ordinary seller-priced service.
 
-Custom contracts need no individual registration. They fund their own balance, approve Distributor
-for exact gross, and use a published public commercial type:
+Current JuvantiaPaymentRegistry.Rule additionally contains commissionBps, fixedCommission,
+commissionRecipient, servicePrice, destination masks and source permissions.
+PaymentSettlement calculates gross - tax - commission and can enforce servicePrice.
+These extra price/commission features differ from the clarified requirement, which is
+tax = floor(gross * taxBps / 10000), net = gross - tax.
+Zero commission settings suppress the deductions but do not remove the configuration surface.
+Zero servicePrice removes on-chain price enforcement, but Core's current creation-service pricing
+then refuses to issue a quote. Implementation alignment is required before activation.
+See [current backend differences](../core/docs/PAYMENT_IMPLEMENTATION.md).
+
+No new deployment has been receipt-verified. This documentation update changes no Solidity behavior.
+
+## Settlement and custody
+
+All official non-P2P payments enter Distributor first. Registry revisions are owner-published;
+Admin SQL drafts/labels do not activate them. Unknown/inactive categories fail closed.
+Explicit zero tax also requires publication. Tax immediately enters Aerarium.
+Addressed net is credited to accountRevenue until collection.
+
+The current credit routes are internal accounting details:
+
+- kind 0 credits one beneficiary account.
+- kind 1 credits a registered asset's eligible ownership pool.
+- kind 2 credits the specific TradeHub seller, with the asset identified separately.
+
+These values are not economic payment categories or invoice delivery methods.
+Ordinary seller receipts and a subsequent Consortium owners' allocation are separate operations.
+Do not add arbitrary multi-beneficiary sale splits to the clarified protocol.
+
+Pool accounting preserves the O(1) transfer-aware index, fractional remainders, checkpoints,
+attributed unsold-share escrow and excluded Consortium treasury shares.
+Trade credits remain seller-specific. claimAll(assets) collects account, pool and trade credits;
+claimAll([]) collects account-only credits. Existing asset claims remain.
+claimAccountFor(account) is permissionless but pays only that beneficiary.
+Collection adds no tax. Encumbrance blocks collection; judicial authority remains separate.
+
+## Public and authenticated entry points
+
+Public pay(categoryId,paymentId,gross,kind,destination) debits msg.sender.
+A published public category is required; no individual source registration or Core signature
+is required for this path. The caller must approve Distributor for the configured token.
 
 ```solidity
-token.approve(address(distributor), gross);
-distributor.pay(categoryId, uniquePaymentId, gross, 0, recipient); // account
-// kind=1 targets a registered asset pool
+token.forceApprove(address(distributor), gross); // SafeERC20
+distributor.pay(categoryId, paymentId, gross, 0, beneficiary);
 ```
 
-They cannot debit someone else's allowance or use private system categories. Source roles are
-owner-configured: TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8, Aerarium=16. Validated
-Consortium registration binds role 4; the configured Syndicate factory registers role 8. Revoking
-an escrow/source prevents new settlement without preventing cancellation or collecting old credits.
-`distributeRevenue` and `processPayment` are compatibility gateways to published rules, with no
-permissionless unclassified zero-tax path. `depositTradeProceeds` is removed.
+This example spends the caller's own funds. If a merchant contract collects customer funds and
+then calls pay, the merchant contract is the debited payer in Settlement.
+This must not be presented as a direct debit of the customer's account.
 
-Trade buyers approve Distributor, which pulls directly from the authenticated buyer. Orders freeze
-the current SHARE_TRADE revision and expire after seven days. Consortium sale proposals require
-the approved buyer to execute them; a shareholder vote cannot debit an arbitrary buyer. Financial
-proposals freeze the rule at creation and use the existing 36-hour proposal deadline.
+payFor and payInvoiceFor are available only to registered sources, which must authenticate their
+actual payer. Current source roles are TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8
+and Aerarium=16. Factories register permitted instance sources/asset pools.
+Registration and source masks control debit authority, not the economic truth of a seller's category.
+Do not remove payer authentication when simplifying category semantics.
 
-Consortium allocation is a distinct taxable operation under CONSORTIUM_DISTRIBUTION. Governance
-approves gross; totalAllocated measures gross and the owners' pool measures net. Existing device or
-trade earnings received by the company become operating funds. Spending and deposits of both
-community types also settle centrally; operatingBalance includes pending addressed receipts.
-Collecting already accrued funds has no new levy.
+distributeRevenue and processPayment remain compatibility gateways using published rules.
+There is no unclassified zero-tax route or depositTradeProceeds gateway.
+Trade buyers authorize Distributor directly; TradeHub holds shares but no withdrawal proceeds.
 
-Existing cancellable Syndicate quotas/refunds and judicial principal payments require explicitly
-published zero-charge private rules. A nonzero charge reverts instead of impairing existing full
-principal obligations. Quotas freeze their rule for seven days; an incomplete round can still be
-cancelled and refunded. A new refund fiscal policy is intentionally deferred.
+## Invoices and payment identity
 
-## Invoices and evidence
+The EIP-712 domain is JuvantiaRevenueDistributor, version 1, selected chain and Distributor address.
+Invoice fields are paymentId, categoryId, revision, kind, destination, asset, gross, issuedAt,
+expiresAt, payer and source. paymentId identifies the payment; destination separately binds
+the beneficiary. The address cannot be inferred from the ID.
 
-EIP-712 domain: JuvantiaRevenueDistributor, version 1, configured chain ID and Distributor address.
-The Invoice fields are paymentId, categoryId, revision, kind, destination, asset, gross, issuedAt,
-expiresAt, payer, source (see INVOICE_TYPEHASH). Only published invoice issuer keys are valid.
-Core's issuer key signs quotes, never citizen transactions. Source=ServicePayments for system
-invoices; the adapter authenticates payer from msg.sender and only emits its receipt. Token
-approvals belong to Distributor. A signed invoice binds all fields and is consumable once.
-Unexpired issued invoices retain their historical revision, provided issuedAt lies in that
-revision's publication window. Maximum quote TTL is seven days. Unsigned pay selects only the
-current rule. Key revocation invalidates invoices signed by that key.
+Core's issuer signs off chain. The payer authorizes the actual transaction.
+Protecting category/revision from tampering is not a classification approval by Core.
+Only Registry-authorized invoice issuers are accepted.
 
-Settlement records paymentId, payer, destination, actual source, category/revision, kind, asset,
-gross, tax, commission and net. Core checks canonical receipt, exact successful ERC-4337
-UserOperation, atomic Kernel calldata, and both ServicePaid and Settlement within that operation's
-log interval. A successful transaction or bare ERC-20 transfer cannot grant service rights.
-Audit is captured when operations are confirmed; no new permanent indexer is required.
+payInvoice authenticates msg.sender as payer and requires source zero.
+System service invoices use source ServicePayments; its pay method authenticates msg.sender
+as payer and forwards through payInvoiceFor. It holds no funds; approval belongs to Distributor.
 
-## Coordinated release preparation
+A valid issued invoice retains its historical revision until expiry, provided issuedAt falls
+within that revision's publication window. Current maximum TTL is seven days.
+Issuer revocation can invalidate outstanding invoices. Unsigned pay uses the current revision.
+Replay protection is keyed by payer/paymentId across categories.
 
-DeployJuvantia now prepares Registry, Aerarium, Distributor, asset implementation/factory, TradeHub,
-ServicePayments, Consortium/Syndicate implementations and factories, and source/registrar/Tribunal
-wiring. Required explicit inputs include BLOCKCHAIN_CHAIN_ID, EURO_TOKEN_ADDRESS,
-PAYMENT_INVOICE_ISSUER_ADDRESS, COMMUNITY_AUTHORIZER_ADDRESS and TRIBUNAL_ADDRESS. It publishes no
-invented rates or prices: an owner must publish every required category through Admin before
-activation. Export receipt-verified ABI/address/deployment blocks, check all bindings and roles,
-run paid invoice/trade/governance/claim smoke tests, then configure Core/Admin/native for the same
-stack. No existing balances or clones are automatically migrated. Compilation and backend CI do
-not establish deployment. DEPLOYMENTS.md changes only after verified receipts.
+The seller's service/order record must establish beneficiary, amount and chosen category before
+invoice issuance. A generalized verified seller association and organization-payer path are not
+implemented merely by accepting destination/payer fields.
 
-Arbitrary external ERC-20 transfers cannot be prohibited by this protocol. Official integrations
-must use settlement; payment classification and service delivery still require their own business
-validation. Routing money alone cannot certify arbitrary code or its off-chain obligations.
+## Organization operations and existing principal routes
+
+Consortium receives addressed commercial net into its operating funds.
+Its separate governed allocation approves gross and reserves net for eligible owners inside
+Distributor. The allocation has its own operation tax. Treasury shares are excluded.
+totalAllocated measures gross. There is no local Consortium owner payout or duplicate earnings index.
+Collecting existing organization credits adds no tax.
+
+Current trade orders preserve their revision for seven days; financial Consortium proposals for
+their 36-hour deadline. A private treasury sale is executed by its approved buyer, not by a vote
+that debits an arbitrary buyer. The public treasury-listing wrapper remains unimplemented.
+
+Existing refundable Syndicate quota and judicial principal routes require published private
+zero-charge rules to preserve their full-principal obligations. These are current domain-specific
+mechanisms. A general commercial refund policy is outside the clarified scope.
+
+## Receipts and release
+
+Settlement emits paymentId, debited payer, beneficiary, source, category/revision, route/asset
+and actual gross/tax/commission/net. Commission is a current event field, not a required deduction.
+
+Core service confirmation verifies the exact successful ERC-4337 UserOperation/canonical receipt,
+atomic Kernel calldata, and matching ServicePaid/Settlement within its log interval.
+A bare transfer, supplied hash or paid flag is insufficient. Service fulfilment stays in its domain.
+Confirmed receipts provide audit; no permanent universal indexer is implied.
+
+Contract wiring and receipt-verified deployment records belong to [DEPLOYMENTS.md](DEPLOYMENTS.md).
+Backend implementation/readiness belongs to [Core readiness](../core/docs/DEPLOYMENT_READINESS.md).
+The category/rate catalog remains administrator data and is not enumerated in this interface.

@@ -1,7 +1,9 @@
 # Central revenue custody
 
-The universal protocol, integration examples, separate Consortium allocation tax, invoice proof
-and coordinated release checklist are documented in [PAYMENT_PROTOCOL.md](PAYMENT_PROTOCOL.md).
+The business model is [Core PAYMENTS.md](../core/docs/PAYMENTS.md): seller price/category,
+one beneficiary, tax only, and separate Consortium owners' allocation.
+Current interfaces and invoice proof are documented in [PAYMENT_PROTOCOL.md](PAYMENT_PROTOCOL.md).
+Extra commission fields below describe current source and require alignment before activation.
 
 TradeHub's legacy mapping remains private at storage slot 4. New order revisions/openedAt/expiry
 and fill nonce are appended at slots 5–8. Existing Order fields are unchanged. Buyers approve and

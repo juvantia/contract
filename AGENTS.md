@@ -52,6 +52,15 @@ Consortium governance/Tribunal gate, Syndicate governance/points and both factor
 
 ### 4. Universal Settlement
 
+Business requirements: [Core PAYMENTS.md](../core/docs/PAYMENTS.md).
+The seller sets price, category and one beneficiary. Categories select tax BPS only.
+Core confirms amount/payer; Custodia reviews economic classification after payment.
+There is no additional commission deduction. A Civitas service named a commission remains
+a seller-priced service. Shared sale income goes to a Consortium, followed by separate allocation.
+Current commission/Registry-price fields and hardcoded service categories require alignment;
+see [implementation differences](../core/docs/PAYMENT_IMPLEMENTATION.md). The source behavior
+below is a technical reference, not an expansion of the clarified business requirements.
+
 All official non-P2P payments enter RevenueDistributor first. PaymentRegistry is non-upgradeable;
 only its owner publishes versioned rules. Tax immediately enters Aerarium; addressed net and
 commission accrue centrally. Asset net retains the transfer-aware O(1) index, fractional remainders,
@@ -60,16 +69,18 @@ governance approves gross and the owners' pool contains net. ServicePayments val
 as a receipt adapter and holds no funds. TradeHub buyers approve/pay Distributor directly. Claims
 include account receipts, pooled owner earnings and trade proceeds through claimAll.
 
-See [PAYMENT_PROTOCOL.md](PAYMENT_PROTOCOL.md) for sources, historical invoice/proposal rules,
-principal refunds, evidence and release preparation. No automatic historical balance migration.
+See [PAYMENT_PROTOCOL.md](PAYMENT_PROTOCOL.md) for current interfaces and historical revisions.
+Refund policy is outside this phase; existing principal mechanisms remain domain-specific.
+No automatic historical balance migration.
 
-### Financial and integration boundaries
+### Current implementation and integration boundaries
 
 - Gross includes tax and commission: tax=floor(gross*taxBps/10000),
   commission=floor(gross*commissionBps/10000)+fixedCommission, net=gross-tax-commission.
-  A fixed civic price is separate from fixed commission.
+  These extra commissions and category-linked prices are current implementation differences,
+  not clarified requirements. The required ordinary-sale formula is net=gross-tax.
 - Registry is financial truth; saving Admin drafts publishes no rules. Unknown/inactive
-  categories fail closed, and zero-charge rules must be explicitly published.
+  categories fail closed, and zero-tax rules must be explicitly published.
 - Tax enters Aerarium immediately; addressed net/commissions accrue inside Distributor.
   Asset-pool net uses transfer-aware accrual; trade proceeds belong to the particular seller.
   Collection of already-accrued funds adds no new levy.
@@ -85,8 +96,8 @@ principal refunds, evidence and release preparation. No automatic historical bal
 - Only configured sources can use delegated payer debits/private categories. Every such source
   must authenticate its real payer. Source roles: TradeHub=1, ServicePayments=2,
   Consortium=4, Syndicate=8, Aerarium=16.
-- One payment has one principal net recipient/pool, an optional commission recipient and tax.
-  Arbitrary multi-recipient percentage splits are not implemented.
+- One payment currently has one principal net recipient/pool, an optional commission recipient and tax.
+  The clarified requirement removes the extra commission. Arbitrary sale splits are not required.
 - Existing refundable Syndicate quotas/refunds and judicial principal routes require private
   published zero-charge rules. A new commercial refund policy is not implemented.
 - Arbitrary external ERC-20 transfers cannot be globally blocked. Financial routing alone

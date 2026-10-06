@@ -6,6 +6,13 @@ There is currently no canonical deployment for the configurable ZeroDev universa
 stack. The user is still selecting the network. No on-chain transactions were broadcast by the
 settlement implementation or this documentation update. No deployment addresses/blocks are asserted.
 
+The clarified tax-only, seller-priced model is documented in
+[Core PAYMENTS.md](../core/docs/PAYMENTS.md). Current source still supports extra commissions,
+category-linked creation prices and some hardcoded service categories. Beneficiary association
+and organizational payer identity also require work. These differences are described in
+[PAYMENT_IMPLEMENTATION.md](../core/docs/PAYMENT_IMPLEMENTATION.md); they are not fixed by this update.
+Activation requires model alignment as well as receipt-verified deployment.
+
 Contract settlement source, tests and the full-stack deployment script are implemented.
 Core invoice signing and receipt-based payment integration are implemented; complete Core
 readiness remains subject to the documented gaps and live acceptance.
@@ -53,19 +60,22 @@ Source bits are TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8 and Aer
 1. Verify successful deployment/configuration receipts, selected chain ID, real token/decimals,
    proxy implementations and every cross-contract binding.
 2. Export real ABIs, addresses and deployment blocks for Core/Admin and other integrations.
-3. Publish required Registry rules with its actual owner. Saving a draft activates nothing.
-   Include service/trade/operating/budget categories and the separate CONSORTIUM_DISTRIBUTION
-   operation. Explicitly publish private zero-charge quota/refund/judicial principal rules.
-   The script publishes no invented rates or prices.
+3. Publish the administrator's selected tax categories/BPS with the actual Registry owner.
+   Saving a draft activates nothing. Seller tariffs belong to seller service configuration,
+   not the tax catalog. Include the separately taxed owners' allocation operation.
+   Existing private full-principal mechanisms retain their domain requirements.
+   No catalog of concrete services/categories is prescribed by this deployment record.
 4. Check the permitted issuer and matching Core secret; both factory authorizers must match
    their configured Core service identity. Core keys do not receive owner/Tribunal authority.
-5. Resolve the known Core receipt/consent/configuration and network-cutover gaps documented
+5. Resolve the payment-model differences and known Core receipt/consent/configuration/cutover gaps
    in Core readiness before declaring the whole server layer operational.
 6. Exercise actual paid invoice/entitlement, civic fee/factory creation, trade, Consortium
    owners' allocation, operating/budget spending, public custom settlement and claimAll receipts.
-   Verify gross = tax + commission + net, real beneficiaries, replay/expiry failure and recovery.
+   Verify the clarified gross = tax + net, the real debited payer and single beneficiary,
+   unchanged historical invoices, replay/expiry failure and recovery.
 
-Net/commission are central credits until collection; tax reaches Aerarium immediately.
+Net is a central credit until collection; tax reaches Aerarium immediately.
+Current commission fields are implementation differences, not approved extra deductions.
 Consortium allocation has its own tax; collecting existing credits has no new levy.
 TradeHub.pendingWithdrawals is a compatibility read, and TradeHub has no euro withdraw route.
 
