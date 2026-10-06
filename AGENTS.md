@@ -59,9 +59,11 @@ There is no additional commission deduction. A Civitas service named a commissio
 a seller-priced service. Shared sale income goes to a Consortium, followed by separate allocation.
 An organization's beneficiary is its factory-created contract address. A representative does
 not assign or replace that address; owners elect spending authority on chain.
-Device rental fees earn the registered underlying owners' pool. Device service receipts earn
-the valid current renter's account, or that pool without a current renter. Core must resolve
-and sign this recipient at issuance; operator administration does not determine earning rights.
+Every payment under a Core rental agreement earns its registered owners' pool regardless of
+current renter/operator or payment time. For device services Core uses authoritative published
+renter_id: verified physical-person account if present, owners' pool otherwise. Leasing maintains
+that field at minute boundaries; the service selector does not recheck lease payments/dates.
+Core signs the recipient snapshot; Distributor does not read Core's rental state.
 Core's recipient switching is still pending. See [leasing requirements](../core/docs/LEASING.md)
 and [implementation TODO](../core/docs/PAYMENT_TODO.md).
 Current Registry-price fields and hardcoded service categories still require alignment;

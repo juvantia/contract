@@ -98,11 +98,13 @@ invoice issuance. A generalized verified seller association and organization-pay
 implemented merely by accepting destination/payer fields.
 
 For device services, [Core's leasing domain](../core/docs/LEASING.md) resolves earning rights:
-a valid current rental selects the renter's verified account (kind 0), otherwise the registered
-underlying owners' pool (kind 1). The rental fee itself always credits owners. Core snapshots
-this choice in the signed invoice; Distributor verifies it and does not read off-chain leases.
+a published renter_id selects its verified physical-person account (kind 0), otherwise the
+registered owners' pool (kind 1). Leasing maintains that field at the agreed minute boundaries;
+service recipient selection does not recheck lease payments/dates. All payments under a Core
+rental agreement always credit its owners' pool, independent of current renter/operator or
+payment time. Core signs these destinations; Distributor does not read off-chain leases.
 Existing account/pool methods support these outcomes, but current Core menu issuance still
-credits the pool unconditionally. Recipient selection, lease proof and boundary/retry acceptance
+credits the pool unconditionally. Current renter-state publication, recipient selection and retry acceptance
 are [pending implementation](../core/docs/PAYMENT_TODO.md). Issued invoices keep their signed
 destination through a handover; no recipient is inferred from paymentId or operator identity.
 
