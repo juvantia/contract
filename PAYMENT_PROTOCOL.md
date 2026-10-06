@@ -97,6 +97,15 @@ The seller's service/order record must establish beneficiary, amount and chosen 
 invoice issuance. A generalized verified seller association and organization-payer path are not
 implemented merely by accepting destination/payer fields.
 
+For device services, [Core's leasing domain](../core/docs/LEASING.md) resolves earning rights:
+a valid current rental selects the renter's verified account (kind 0), otherwise the registered
+underlying owners' pool (kind 1). The rental fee itself always credits owners. Core snapshots
+this choice in the signed invoice; Distributor verifies it and does not read off-chain leases.
+Existing account/pool methods support these outcomes, but current Core menu issuance still
+credits the pool unconditionally. Recipient selection, lease proof and boundary/retry acceptance
+are [pending implementation](../core/docs/PAYMENT_TODO.md). Issued invoices keep their signed
+destination through a handover; no recipient is inferred from paymentId or operator identity.
+
 ## Organization operations and existing principal routes
 
 The factory creates the organization's contract address at incorporation. That established

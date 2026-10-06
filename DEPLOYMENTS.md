@@ -13,6 +13,9 @@ remain implementation differences. Beneficiary association
 and organizational payer identity also require work. These differences are described in
 [PAYMENT_IMPLEMENTATION.md](../core/docs/PAYMENT_IMPLEMENTATION.md); they are not fixed by this update.
 Activation requires model alignment as well as receipt-verified deployment.
+Core's leased-device service recipient switching is also pending: service net must earn the
+current renter while rental fees continue to earn owners. See [leasing requirements](../core/docs/LEASING.md)
+and [implementation TODO](../core/docs/PAYMENT_TODO.md); documentation does not activate routing.
 
 Contract settlement source, tests and the full-stack deployment script are implemented.
 Core invoice signing and receipt-based payment integration are implemented; complete Core
@@ -77,7 +80,9 @@ Source bits are TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8 and Aer
 6. Exercise actual paid invoice/entitlement, civic fee/factory creation, trade, Consortium
    owners' allocation, operating/budget spending, public custom settlement and claimAll receipts.
    Verify the clarified gross = tax + net, the real debited payer and single beneficiary,
-   unchanged historical invoices, replay/expiry failure and recovery.
+   unchanged historical invoices, replay/expiry failure and recovery. Include a device service
+   with/without a paid current renter, scheduled/expired leases, a handover racing issuance and
+   preservation of signed recipients. Rental fees must still credit owners.
 
 Net is a central credit until collection; tax reaches Aerarium immediately.
 Rule tuple and Settlement event signatures changed. Export matching ABIs for all services and
