@@ -73,7 +73,7 @@ contract TribunalSeizureTest is ProtocolFixture {
         assertEq(asset.balanceOf(victim), 25_000 ether);
 
         // Revenue checkpoints update correctly: distribute 100 EUR
-        revenue.distributeRevenue(address(asset), 100 ether);
+        revenue.distributeRevenue(address(asset), 100 ether, keccak256("ASSET_REVENUE"));
         assertEq(revenue.claimable(address(asset), alice), 75 ether);
         assertEq(revenue.claimable(address(asset), victim), 25 ether);
 
@@ -130,17 +130,17 @@ contract TribunalSeizureTest is ProtocolFixture {
         // Deposit operating EURO into Consortium
         euroToken.mint(address(this), 10_000 ether);
         euroToken.approve(address(revenue), 10_000 ether);
-        consortium.depositOperating(10_000 ether, keccak256("ops-1"));
+        consortium.depositOperating(10_000 ether, keccak256("ops-1"), keccak256("OPERATING_RECEIPT"));
         assertEq(consortium.operatingBalance(), 10_000 ether);
 
         // Non-tribunal cannot seize EURO
         vm.prank(bob);
         vm.expectRevert("Only tribunal");
-        consortium.judicialSeizePayment(victim, 1_000 ether);
+        consortium.judicialSeizePayment(victim, 1_000 ether, keccak256("JUDICIAL_PAYMENT"));
 
         // Tribunal seizes EURO from Consortium
         vm.prank(tribunal);
-        consortium.judicialSeizePayment(victim, 3_000 ether);
+        consortium.judicialSeizePayment(victim, 3_000 ether, keccak256("JUDICIAL_PAYMENT"));
 
         assertEq(revenue.accountRevenue(victim), 3_000 ether);
         assertEq(consortium.operatingBalance(), 7_000 ether);
@@ -165,7 +165,7 @@ contract TribunalSeizureTest is ProtocolFixture {
         assertEq(asset.balanceOf(address(consortium)), 2_000 ether);
 
         vm.prank(tribunal);
-        consortium.judicialSeizeToken(address(asset), victim, 1_500 ether);
+        consortium.judicialSeizeToken(address(asset), victim, 1_500 ether, keccak256("JUDICIAL_PAYMENT"));
         assertEq(asset.balanceOf(victim), 1_500 ether);
         assertEq(asset.balanceOf(address(consortium)), 500 ether);
     }
@@ -206,17 +206,17 @@ contract TribunalSeizureTest is ProtocolFixture {
         // Fund syndicate operating
         euroToken.mint(address(this), 5_000 ether);
         euroToken.approve(address(revenue), 5_000 ether);
-        syndicate.depositOperating(5_000 ether, keccak256("clan-ops"));
+        syndicate.depositOperating(5_000 ether, keccak256("clan-ops"), keccak256("OPERATING_RECEIPT"));
         assertEq(syndicate.operatingBalance(), 5_000 ether);
 
         // Non-tribunal cannot seize
         vm.prank(bob);
         vm.expectRevert("Only tribunal");
-        syndicate.judicialSeizePayment(victim, 1_000 ether);
+        syndicate.judicialSeizePayment(victim, 1_000 ether, keccak256("JUDICIAL_PAYMENT"));
 
         // Tribunal seizes EURO
         vm.prank(tribunal);
-        syndicate.judicialSeizePayment(victim, 2_000 ether);
+        syndicate.judicialSeizePayment(victim, 2_000 ether, keccak256("JUDICIAL_PAYMENT"));
         assertEq(revenue.accountRevenue(victim), 2_000 ether);
         assertEq(syndicate.operatingBalance(), 3_000 ether);
 
@@ -228,7 +228,7 @@ contract TribunalSeizureTest is ProtocolFixture {
 
         // Tribunal seizes APU from Syndicate using judicialSeizeToken
         vm.prank(tribunal);
-        syndicate.judicialSeizeToken(address(asset), victim, 3_000 ether);
+        syndicate.judicialSeizeToken(address(asset), victim, 3_000 ether, keccak256("JUDICIAL_PAYMENT"));
         assertEq(asset.balanceOf(victim), 3_000 ether);
         assertEq(asset.balanceOf(address(syndicate)), 1_000 ether);
     }
@@ -253,7 +253,7 @@ contract TribunalSeizureTest is ProtocolFixture {
         // Distribute 10,000 EUR to asset
         euroToken.mint(address(this), 10_000 ether);
         euroToken.approve(address(revenue), 10_000 ether);
-        revenue.distributeRevenue(address(asset), 10_000 ether);
+        revenue.distributeRevenue(address(asset), 10_000 ether, keccak256("ASSET_REVENUE"));
 
         assertEq(revenue.claimable(address(asset), alice), 10_000 ether);
 
@@ -308,7 +308,7 @@ contract TribunalSeizureTest is ProtocolFixture {
         // Distribute another 2,000 EUR; Alice can now claim normally
         euroToken.mint(address(this), 2_000 ether);
         euroToken.approve(address(revenue), 2_000 ether);
-        revenue.distributeRevenue(address(asset), 2_000 ether);
+        revenue.distributeRevenue(address(asset), 2_000 ether, keccak256("ASSET_REVENUE"));
 
         uint256 aliceBefore = euroToken.balanceOf(alice);
         vm.prank(alice);

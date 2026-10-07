@@ -24,11 +24,11 @@ contract ConsortiumTreasuryHarness is ConsortiumTreasury {
     }
 
     function allocate(uint256 amount) external authorized nonReentrant {
-        _allocateDistributable(amount);
+        _allocateDistributable(amount, keccak256("CONSORTIUM_DISTRIBUTION"));
     }
 
     function spend(address recipient, uint256 amount) external authorized nonReentrant {
-        _spendOperating(recipient, amount, keccak256("invoice"));
+        _spendOperating(recipient, amount, keccak256("invoice"), keccak256("OPERATING_EXPENSE"));
     }
 
     function claimDeviceRevenue(address asset) external authorized nonReentrant returns (uint256) {
@@ -41,7 +41,7 @@ contract ConsortiumTreasuryHarness is ConsortiumTreasury {
 
     function listTreasuryShares(JuvantiaTradeHub hub, uint256 amount) external authorized returns (uint256) {
         shareToken.approve(address(hub), amount);
-        return hub.createOrder(address(shareToken), amount, 1 ether);
+        return hub.createOrder(address(shareToken), amount, 1 ether, keccak256("SHARE_TRADE"));
     }
 }
 
@@ -61,7 +61,7 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         company.transferTreasuryShares(alice, 60_000 ether);
         company.transferTreasuryShares(bob, 20_000 ether);
         euroToken.approve(address(revenue), type(uint256).max);
-        company.depositOperating(1_000 ether, keccak256("revenue"));
+        company.depositOperating(1_000 ether, keccak256("revenue"), keccak256("OPERATING_RECEIPT"));
         hub = JuvantiaTradeHub(
             address(
                 new ERC1967Proxy(
@@ -140,10 +140,10 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         assertEq(company.operatingBalance(), 1_011 ether);
         vm.prank(alice);
         asset.transfer(address(company), 100_000 ether);
-        revenue.distributeRevenue(address(asset), 7 ether);
+        revenue.distributeRevenue(address(asset), 7 ether, keccak256("ASSET_REVENUE"));
         revenue.claimFor(address(asset), address(company));
         assertEq(company.operatingBalance(), 1_018 ether);
-        revenue.distributeRevenue(address(asset), 5 ether);
+        revenue.distributeRevenue(address(asset), 5 ether, keccak256("ASSET_REVENUE"));
         assertEq(company.claimDeviceRevenue(address(asset)), 5 ether);
         assertEq(company.operatingBalance(), 1_023 ether);
         vm.expectRevert("No revenue claimed");
@@ -153,7 +153,7 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
     function testSellerEarnsWhileSharesAreListedAndBuyerOnlyAfterFill() public {
         vm.startPrank(alice);
         shares.approve(address(hub), 1_000 ether);
-        uint256 order = hub.createOrder(address(shares), 1_000 ether, 1 ether);
+        uint256 order = hub.createOrder(address(shares), 1_000 ether, 1 ether, keccak256("SHARE_TRADE"));
         vm.stopPrank();
         company.allocate(80 ether);
         assertEq(company.claimable(address(hub)), 0);
@@ -310,10 +310,10 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
 
     function testBatchCombinesCompanyDeviceAndTradeEarnings() public {
         company.allocate(80 ether);
-        revenue.distributeRevenue(address(asset), 10 ether);
+        revenue.distributeRevenue(address(asset), 10 ether, keccak256("ASSET_REVENUE"));
         vm.startPrank(alice);
         shares.approve(address(hub), 1_000 ether);
-        uint256 order = hub.createOrder(address(shares), 1_000 ether, 1 ether);
+        uint256 order = hub.createOrder(address(shares), 1_000 ether, 1 ether, keccak256("SHARE_TRADE"));
         vm.stopPrank();
         vm.prank(bob);
         hub.fillOrder(order, 1_000 ether);
@@ -383,7 +383,7 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         shares.transfer(address(company), 20_000 ether);
         uint256 beforeBalance = euroToken.balanceOf(address(this));
         vm.expectRevert("No circulating shares");
-        revenue.distributeRevenue(address(shares), 1 ether);
+        revenue.distributeRevenue(address(shares), 1 ether, keccak256("ASSET_REVENUE"));
         assertEq(euroToken.balanceOf(address(this)), beforeBalance);
         assertEq(company.distributablePool(), 80 ether);
         assertEq(revenue.claimFor(address(shares), alice), 60 ether);
@@ -392,7 +392,7 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
     }
 
     function testExternalFundingUsesSameTreasuryExclusion() public {
-        revenue.distributeRevenue(address(shares), 80 ether);
+        revenue.distributeRevenue(address(shares), 80 ether, keccak256("ASSET_REVENUE"));
         assertEq(company.operatingBalance(), 1_000 ether);
         assertEq(company.totalAllocated(), 0);
         assertEq(revenue.claimFor(address(shares), alice), 60 ether);

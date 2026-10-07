@@ -70,12 +70,10 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
         return shareToken.totalSupply() - treasuryShares();
     }
 
-    function depositOperating(uint256 amount, bytes32 referenceId) external nonReentrant {
+    function depositOperating(uint256 amount, bytes32 referenceId, bytes32 categoryId) external nonReentrant {
         require(amount > 0, "Zero amount");
         revenueDistributor.payFor(
-            PaymentSettlement.Payment(
-                referenceId, keccak256("OPERATING_RECEIPT"), 0, 0, address(this), address(0), amount, 0, 0
-            ),
+            PaymentSettlement.Payment(referenceId, categoryId, 0, 0, address(this), address(0), amount, 0, 0),
             msg.sender
         );
         emit OperatingDeposit(msg.sender, referenceId, amount);
@@ -87,11 +85,17 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
     }
 
     /// @dev Must only be called by an approved revenue-distribution proposal.
-    function _allocateDistributable(uint256 amount) internal {
-        _allocateDistributable(amount, 0, 0, 0);
+    function _allocateDistributable(uint256 amount, bytes32 categoryId) internal {
+        _allocateDistributable(amount, 0, 0, 0, categoryId);
     }
 
-    function _allocateDistributable(uint256 amount, uint256 revision, uint256 issuedAt, uint256 expiresAt) internal {
+    function _allocateDistributable(
+        uint256 amount,
+        uint256 revision,
+        uint256 issuedAt,
+        uint256 expiresAt,
+        bytes32 categoryId
+    ) internal {
         require(
             revenueDistributor.revenueTreasuries(address(shareToken)) == address(this), "Unregistered revenue treasury"
         );
@@ -103,7 +107,7 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
         revenueDistributor.payFor(
             PaymentSettlement.Payment(
                 keccak256(abi.encode(address(this), ++settlementNonce)),
-                keccak256("CONSORTIUM_DISTRIBUTION"),
+                categoryId,
                 revision,
                 1,
                 address(shareToken),
@@ -119,8 +123,8 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
     }
 
     /// @dev Must only be called by authorized Magister spending/governance paths.
-    function _spendOperating(address recipient, uint256 amount, bytes32 referenceId) internal {
-        _spendOperating(recipient, amount, referenceId, 0, 0, 0);
+    function _spendOperating(address recipient, uint256 amount, bytes32 referenceId, bytes32 categoryId) internal {
+        _spendOperating(recipient, amount, referenceId, 0, 0, 0, categoryId);
     }
 
     function _spendOperating(
@@ -129,7 +133,8 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
         bytes32 referenceId,
         uint256 revision,
         uint256 issuedAt,
-        uint256 expiresAt
+        uint256 expiresAt,
+        bytes32 categoryId
     ) internal {
         require(recipient != address(0) && recipient != address(this), "Invalid recipient");
         require(amount > 0 && amount <= operatingBalance(), "Insufficient operating funds");
@@ -137,15 +142,7 @@ abstract contract ConsortiumTreasury is Initializable, ReentrancyGuard {
         paymentToken.forceApprove(address(revenueDistributor), amount);
         revenueDistributor.payFor(
             PaymentSettlement.Payment(
-                referenceId,
-                keccak256("OPERATING_EXPENSE"),
-                revision,
-                0,
-                recipient,
-                address(0),
-                amount,
-                issuedAt,
-                expiresAt
+                referenceId, categoryId, revision, 0, recipient, address(0), amount, issuedAt, expiresAt
             ),
             address(this)
         );

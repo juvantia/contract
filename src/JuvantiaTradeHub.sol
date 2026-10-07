@@ -10,6 +10,7 @@ import "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {PaymentSettlement} from "./PaymentSettlement.sol";
 import {JuvantiaRevenueDistributor} from "./JuvantiaRevenueDistributor.sol";
+import {JuvantiaPaymentRegistry} from "./JuvantiaPaymentRegistry.sol";
 
 contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuard {
     using SafeERC20 for IERC20;
@@ -36,6 +37,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
     mapping(uint256 => uint256) public orderOpenedAt;
     mapping(uint256 => uint256) public orderExpiresAt;
     uint256 private fillNonce;
+    mapping(uint256 => bytes32) public orderCategory;
 
     event OrderCreated(
         uint256 indexed orderId,
@@ -69,7 +71,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
      * @param amount The total number of asset tokens (e.g., 1000 * 10**18).
      * @param pricePerToken The price in currencyToken for ONE full asset token (i.e. 10**18 wei).
      */
-    function createOrder(address assetToken, uint256 amount, uint256 pricePerToken)
+    function createOrder(address assetToken, uint256 amount, uint256 pricePerToken, bytes32 categoryId)
         external
         nonReentrant
         returns (uint256)
@@ -78,6 +80,8 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         require(pricePerToken > 0, "Price must be > 0");
         require(assetToken != address(0), "Invalid asset token");
         require(revenueDistributor.registeredAssets(assetToken), "Unknown asset");
+        JuvantiaPaymentRegistry.Rule memory rule = revenueDistributor.paymentRegistry().currentRule(categoryId);
+        require(rule.destinations & 4 != 0 && rule.sourceRoles & 1 != 0, "Category does not permit trade");
 
         // Transfer asset tokens from seller to JuvantiaTradeHub (requires prior approval)
         IERC20(assetToken).safeTransferFrom(msg.sender, address(this), amount);
@@ -92,8 +96,8 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
             isActive: true
         });
 
-        orderRevision[orderId] = revenueDistributor.paymentRegistry().currentRevision(keccak256("SHARE_TRADE"));
-        revenueDistributor.paymentRegistry().currentRule(keccak256("SHARE_TRADE"));
+        orderCategory[orderId] = categoryId;
+        orderRevision[orderId] = revenueDistributor.paymentRegistry().currentRevision(categoryId);
         orderOpenedAt[orderId] = block.timestamp;
         orderExpiresAt[orderId] = block.timestamp + 7 days;
         emit OrderCreated(orderId, msg.sender, assetToken, amount, pricePerToken);
@@ -120,7 +124,7 @@ contract JuvantiaTradeHub is Initializable, OwnableUpgradeable, UUPSUpgradeable,
         revenueDistributor.payFor(
             PaymentSettlement.Payment(
                 keccak256(abi.encode(address(this), orderId, ++fillNonce)),
-                keccak256("SHARE_TRADE"),
+                orderCategory[orderId],
                 orderRevision[orderId],
                 2,
                 order.seller,

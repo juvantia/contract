@@ -88,6 +88,8 @@ contract Syndicate is Initializable, ReentrancyGuard {
     uint256 private settlementNonce;
     mapping(uint256 => uint256) public collectionRevision;
     mapping(uint256 => uint256) public collectionOpenedAt;
+    mapping(uint256 => bytes32) public collectionCategory;
+    mapping(uint256 => bytes32) public collectionRefundCategory;
 
     event PrimusChanged(address indexed oldPrimus, address indexed newPrimus);
     event AdminSet(address indexed oldAdmin, address indexed newAdmin);
@@ -519,26 +521,28 @@ contract Syndicate is Initializable, ReentrancyGuard {
     }
 
     /// @notice Deposit operating funds into Syndicate treasury.
-    function depositOperating(uint256 amount, bytes32 referenceId) external nonReentrant {
+    function depositOperating(uint256 amount, bytes32 referenceId, bytes32 categoryId) external nonReentrant {
         require(amount > 0, "Zero amount");
         revenueDistributor.payFor(
-            PaymentSettlement.Payment(
-                referenceId, keccak256("OPERATING_RECEIPT"), 0, 0, address(this), address(0), amount, 0, 0
-            ),
+            PaymentSettlement.Payment(referenceId, categoryId, 0, 0, address(this), address(0), amount, 0, 0),
             msg.sender
         );
         emit OperatingDeposit(msg.sender, referenceId, amount);
     }
 
     /// @notice Primus executes petty operational expenditure.
-    function spendPetty(address recipient, uint256 amount, bytes32 referenceId) external onlyPrimus nonReentrant {
+    function spendPetty(address recipient, uint256 amount, bytes32 referenceId, bytes32 categoryId)
+        external
+        onlyPrimus
+        nonReentrant
+    {
         require(recipient != address(0) && recipient != address(this), "Invalid recipient");
         require(amount > 0 && amount <= pettyLimit, "Invalid or exceeding petty limit");
         require(amount <= operatingBalance(), "Insufficient operating funds");
 
         revenueDistributor.claimAccountFor(address(this));
         paymentToken.forceApprove(address(revenueDistributor), amount);
-        revenueDistributor.pay(keccak256("OPERATING_EXPENSE"), referenceId, amount, 0, recipient);
+        revenueDistributor.pay(categoryId, referenceId, amount, 0, recipient);
         emit OperatingSpent(recipient, referenceId, amount);
     }
 
@@ -556,25 +560,29 @@ contract Syndicate is Initializable, ReentrancyGuard {
     }
 
     /// @notice Judicial seizure of EURO payment tokens by the Tribunal.
-    function judicialSeizePayment(address to, uint256 amount) external onlyTribunal nonReentrant {
-        _seizePayment(to, amount);
+    function judicialSeizePayment(address to, uint256 amount, bytes32 categoryId) external onlyTribunal nonReentrant {
+        _seizePayment(to, amount, categoryId);
     }
 
     /// @notice Judicial seizure of any token (including APU tokens) held by the Syndicate by the Tribunal.
-    function judicialSeizeToken(address token, address to, uint256 amount) external onlyTribunal nonReentrant {
+    function judicialSeizeToken(address token, address to, uint256 amount, bytes32 categoryId)
+        external
+        onlyTribunal
+        nonReentrant
+    {
         require(token != address(0), "Invalid token");
         require(to != address(0) && to != address(this), "Invalid recipient");
         require(amount > 0, "Zero amount");
 
         if (token == address(paymentToken)) {
-            _seizePayment(to, amount);
+            _seizePayment(to, amount, categoryId);
         } else {
             IERC20(token).safeTransfer(to, amount);
             emit JudicialTokenSeized(token, to, amount);
         }
     }
 
-    function _seizePayment(address to, uint256 amount) internal {
+    function _seizePayment(address to, uint256 amount, bytes32 categoryId) internal {
         require(to != address(0) && to != address(this), "Invalid recipient");
         require(amount > 0, "Zero amount");
         revenueDistributor.claimAccountFor(address(this));
@@ -587,15 +595,18 @@ contract Syndicate is Initializable, ReentrancyGuard {
         }
 
         paymentToken.forceApprove(address(revenueDistributor), amount);
-        uint256 net = revenueDistributor.pay(
-            keccak256("JUDICIAL_PAYMENT"), keccak256(abi.encode(address(this), ++settlementNonce)), amount, 0, to
-        );
+        uint256 net =
+            revenueDistributor.pay(categoryId, keccak256(abi.encode(address(this), ++settlementNonce)), amount, 0, to);
         require(net == amount, "Judicial principal charges deferred");
         emit JudicialPaymentSeized(to, amount);
     }
 
     /// @notice Primus starts a proportional dues collection round. Quotas are snapshotted across all current members.
-    function startCollection(uint256 targetAmount, bytes32 purpose) external onlyPrimus returns (uint256 collectionId) {
+    function startCollection(uint256 targetAmount, bytes32 purpose, bytes32 categoryId, bytes32 refundCategoryId)
+        external
+        onlyPrimus
+        returns (uint256 collectionId)
+    {
         require(activeCollectionId == 0, "Active collection in progress");
         require(targetAmount > 0, "Target must be positive");
         require(members.length > 0 && totalWeight > 0, "No members or weight");
@@ -625,9 +636,11 @@ contract Syndicate is Initializable, ReentrancyGuard {
             collectionQuotas[collectionId][m] = q;
         }
 
-        revenueDistributor.paymentRegistry().currentRule(keccak256("SYNDICATE_QUOTA"));
-        collectionRevision[collectionId] =
-            revenueDistributor.paymentRegistry().currentRevision(keccak256("SYNDICATE_QUOTA"));
+        revenueDistributor.paymentRegistry().currentRule(categoryId);
+        revenueDistributor.paymentRegistry().currentRule(refundCategoryId);
+        collectionCategory[collectionId] = categoryId;
+        collectionRefundCategory[collectionId] = refundCategoryId;
+        collectionRevision[collectionId] = revenueDistributor.paymentRegistry().currentRevision(categoryId);
         collectionOpenedAt[collectionId] = block.timestamp;
         emit CollectionStarted(collectionId, targetAmount, purpose, members.length);
     }
@@ -649,7 +662,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
         uint256 net = revenueDistributor.payFor(
             PaymentSettlement.Payment(
                 keccak256(abi.encode(address(this), collectionId, msg.sender)),
-                keccak256("SYNDICATE_QUOTA"),
+                collectionCategory[collectionId],
                 collectionRevision[collectionId],
                 0,
                 address(this),
@@ -697,7 +710,7 @@ contract Syndicate is Initializable, ReentrancyGuard {
         revenueDistributor.claimAccountFor(address(this));
         paymentToken.forceApprove(address(revenueDistributor), amount);
         uint256 net = revenueDistributor.pay(
-            keccak256("SYNDICATE_REFUND"),
+            collectionRefundCategory[collectionId],
             keccak256(abi.encode(address(this), collectionId, msg.sender, "refund")),
             amount,
             0,

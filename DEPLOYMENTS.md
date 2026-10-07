@@ -8,11 +8,12 @@ settlement implementation or this documentation update. No deployment addresses/
 
 The clarified tax-only, seller-priced model is documented in
 [Core PAYMENTS.md](../core/docs/PAYMENTS.md). Additional commissions are removed from source,
-ABIs, reviews and public DTOs. Category-linked creation prices and some hardcoded service categories
-remain implementation differences. Beneficiary association
-and organizational payer identity also require work. These differences are described in
+ABIs, reviews and public DTOs. Registry prices and compiled category identifiers are removed. Seller service/order data
+supplies both independently. General beneficiary association remains separate integration work;
+organization creation and organizational payer identity are deferred to a later phase. These differences are described in
 [PAYMENT_IMPLEMENTATION.md](../core/docs/PAYMENT_IMPLEMENTATION.md); they are not fixed by this update.
-Activation requires model alignment as well as receipt-verified deployment.
+Activation requires release configuration and receipt-verified deployment. Deferred organization
+workflows require their own proof/authorization completion before enablement.
 Core's device service recipient switching uses authoritative published renter_id (MVP physical
 persons); scheduled publication, recovery and recipient snapshots are implemented in Core.
 Live acceptance against the chosen chain remains after receipt-verified deployment. All agreement payments always
@@ -106,3 +107,16 @@ This section contains no records because no new canonical deployment has been ve
 
 No old clones, balances or economic state migrate automatically. Backend builds/deployments
 and Android/iOS JavaScript exports do not establish on-chain activation or a native binary/OTA release.
+
+## Seller category and price release update — 2026-10-07
+
+Rule now contains active/publicAccess/destinations/taxBps/sourceRoles only; there is no servicePrice.
+No financial category names or selling prices are built into runtime contracts.
+createOrder(asset,amount,pricePerShare,categoryId) snapshots seller category plus price/revision;
+TradeHub appends orderCategory after existing state, preserving all prior UUPS slots.
+Distributor.distributeRevenue(asset,gross,categoryId), budget spend/spendReviewed, operating and
+judicial payments require a supplied category. Financial Consortium proposals bind categoryId;
+Syndicate collection rounds bind collection/refund categories. Authorities and full-principal
+checks remain unchanged. Organization backend workflow completion is deferred, not established
+by these interface changes. Export matching ABIs before chain activation; old argument lists
+are not silently accepted with a default category. No on-chain transaction was sent.

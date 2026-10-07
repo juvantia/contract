@@ -399,21 +399,21 @@ contract SyndicateFactoryTest is ProtocolFixture {
         Syndicate syndicate = Syndicate(clone);
 
         euroToken.approve(address(revenue), 5_000 ether);
-        syndicate.depositOperating(5_000 ether, keccak256("syn-dep"));
+        syndicate.depositOperating(5_000 ether, keccak256("syn-dep"), keccak256("OPERATING_RECEIPT"));
         assertEq(syndicate.operatingBalance(), 5_000 ether);
 
         vm.prank(bob);
         vm.expectRevert("Only primus");
-        syndicate.spendPetty(bob, 100 ether, keccak256("syn-petty-1"));
+        syndicate.spendPetty(bob, 100 ether, keccak256("syn-petty-1"), keccak256("OPERATING_EXPENSE"));
 
         vm.prank(alice);
-        syndicate.spendPetty(carol, 200 ether, keccak256("syn-petty-1"));
+        syndicate.spendPetty(carol, 200 ether, keccak256("syn-petty-1"), keccak256("OPERATING_EXPENSE"));
         assertEq(revenue.accountRevenue(carol), 200 ether);
         assertEq(syndicate.operatingBalance(), 4_800 ether);
 
         vm.prank(alice);
         vm.expectRevert("Invalid or exceeding petty limit");
-        syndicate.spendPetty(carol, 600 ether, keccak256("syn-petty-2"));
+        syndicate.spendPetty(carol, 600 ether, keccak256("syn-petty-2"), keccak256("OPERATING_EXPENSE"));
     }
 
     function testCannotReinitializeSyndicate() public {
@@ -484,7 +484,9 @@ contract SyndicateFactoryTest is ProtocolFixture {
         // 1. Primus starts collection for 3,400 EURC
         bytes32 purpose = keccak256("RobulusPurchase");
         vm.prank(alice);
-        uint256 colId = syndicate.startCollection(3_400 ether, purpose);
+        uint256 colId = syndicate.startCollection(
+            3_400 ether, purpose, keccak256("SYNDICATE_QUOTA"), keccak256("SYNDICATE_REFUND")
+        );
         assertEq(colId, 1);
         assertEq(syndicate.activeCollectionId(), 1);
 
@@ -501,7 +503,7 @@ contract SyndicateFactoryTest is ProtocolFixture {
         // Cannot start second collection concurrently
         vm.prank(alice);
         vm.expectRevert("Active collection in progress");
-        syndicate.startCollection(1_000 ether, purpose);
+        syndicate.startCollection(1_000 ether, purpose, keccak256("SYNDICATE_QUOTA"), keccak256("SYNDICATE_REFUND"));
 
         // Cannot kick or change grade during active collection
         vm.prank(alice);
@@ -564,7 +566,9 @@ contract SyndicateFactoryTest is ProtocolFixture {
 
         bytes32 purpose = keccak256("DomusExpansion");
         vm.prank(alice);
-        uint256 colId = syndicate.startCollection(3_400 ether, purpose);
+        uint256 colId = syndicate.startCollection(
+            3_400 ether, purpose, keccak256("SYNDICATE_QUOTA"), keccak256("SYNDICATE_REFUND")
+        );
 
         // Bob pays his quota 200 ether
         deal(address(euroToken), bob, 500 ether);

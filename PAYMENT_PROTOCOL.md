@@ -14,11 +14,11 @@ A Civitas service named a commission is still an ordinary seller-priced service.
 The additional commission configuration, calculation and recipient crediting are removed.
 Registry.calculate returns tax and net only. Settlement emits gross, tax and net.
 tax = floor(gross * taxBps / 10000), net = gross - tax.
-Current Rule still contains servicePrice, destination masks and source permissions.
-Category-linked price enforcement remains a separate implementation difference.
-Zero servicePrice removes on-chain price enforcement, but Core's current creation-service pricing
-then refuses to issue a quote. Implementation alignment is required before activation.
-See [current backend differences](../core/docs/PAYMENT_IMPLEMENTATION.md).
+Rule contains active, publicAccess, destinations, taxBps and sourceRoles only.
+Registry never supplies or constrains the selling price. Categories are owner-published data;
+contracts contain no catalog of category names. Core takes category/price from the seller's
+service/offer. Civitas tariffs are separate seller records in Admin, not tax Registry data.
+See [current backend behavior](../core/docs/PAYMENT_IMPLEMENTATION.md).
 
 No new deployment has been receipt-verified. The reduced Rule tuple and Settlement event require matching ABIs and a fresh configured-stack deployment; no upgrade or on-chain broadcast is performed by this change.
 
@@ -67,7 +67,9 @@ and Aerarium=16. Factories register permitted instance sources/asset pools.
 Registration and source masks control debit authority, not the economic truth of a seller's category.
 Do not remove payer authentication when simplifying category semantics.
 
-distributeRevenue and processPayment remain compatibility gateways using published rules.
+distributeRevenue(asset,gross,categoryId) and processPayment use caller-supplied published categories.
+There is no default-category overload. TradeHub.createOrder(asset,amount,pricePerShare,categoryId)
+binds the seller category in appended orderCategory state, preserving the legacy Order tuple.
 There is no unclassified zero-tax route or depositTradeProceeds gateway.
 Trade buyers authorize Distributor directly; TradeHub holds shares but no withdrawal proceeds.
 
@@ -123,7 +125,7 @@ Distributor. The allocation has its own operation tax. Treasury shares are exclu
 totalAllocated measures gross. There is no local Consortium owner payout or duplicate earnings index.
 Collecting existing organization credits adds no tax.
 
-Current trade orders preserve their revision for seven days; financial Consortium proposals for
+Current trade orders preserve their seller-selected category, price and revision for seven days; financial Consortium proposals for
 their 36-hour deadline. A private treasury sale is executed by its approved buyer, not by a vote
 that debits an arbitrary buyer. The public treasury-listing wrapper remains unimplemented.
 
@@ -144,3 +146,15 @@ Confirmed receipts provide audit; no permanent universal indexer is implied.
 Contract wiring and receipt-verified deployment records belong to [DEPLOYMENTS.md](DEPLOYMENTS.md).
 Backend implementation/readiness belongs to [Core readiness](../core/docs/DEPLOYMENT_READINESS.md).
 The category/rate catalog remains administrator data and is not enumerated in this interface.
+
+## Explicit category arguments
+
+Aerarium.spend(recipient,gross,purpose,categoryId) and
+spendReviewed(recipient,gross,purpose,categoryId,expectedRevision) settle the supplied seller category.
+Budget receipt review binds that category and revision with gross/tax/net.
+Consortium.propose(type,data,categoryId) snapshots the category for financial proposals;
+non-financial proposals do not require one. Operating deposit/spend and judicial monetary
+entry points take categoryId; existing spending/Tribunal authorization remains mandatory.
+Syndicate.startCollection(gross,purpose,categoryId,refundCategoryId) records the collection and
+refund choices for subsequent payments. Existing full-principal requirements are still enforced.
+No new organizational workflow or commercial refund policy is introduced.

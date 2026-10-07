@@ -41,6 +41,7 @@ contract Consortium is ConsortiumTreasury {
     mapping(uint256 => mapping(address => bool)) public hasVoted;
 
     mapping(uint256 => uint256) public proposalRuleRevision;
+    mapping(uint256 => bytes32) public proposalCategory;
 
     event MagisterChanged(address indexed newMagister);
     event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
@@ -120,21 +121,21 @@ contract Consortium is ConsortiumTreasury {
     }
 
     /// @notice Judicial seizure of EURO payment tokens by the Tribunal.
-    function judicialSeizePayment(address to, uint256 amount) external onlyTribunal nonReentrant {
+    function judicialSeizePayment(address to, uint256 amount, bytes32 categoryId) external onlyTribunal nonReentrant {
         require(to != address(0) && to != address(this), "Invalid recipient");
         require(amount > 0, "Zero amount");
         revenueDistributor.claimAccountFor(address(this));
         uint256 totalBal = paymentToken.balanceOf(address(this));
         require(amount <= totalBal, "Insufficient balance");
 
-        _routeJudicialPayment(to, amount);
+        _routeJudicialPayment(to, amount, categoryId);
         emit JudicialPaymentSeized(to, amount);
     }
 
-    function _routeJudicialPayment(address to, uint256 amount) internal {
+    function _routeJudicialPayment(address to, uint256 amount, bytes32 categoryId) internal {
         paymentToken.forceApprove(address(revenueDistributor), amount);
         uint256 net = revenueDistributor.pay(
-            keccak256("JUDICIAL_PAYMENT"), keccak256(abi.encode(address(this), ++settlementNonce, to)), amount, 0, to
+            categoryId, keccak256(abi.encode(address(this), ++settlementNonce, to)), amount, 0, to
         );
         require(net == amount, "Judicial principal charges deferred");
     }
@@ -150,7 +151,11 @@ contract Consortium is ConsortiumTreasury {
     }
 
     /// @notice Judicial seizure of any ERC-20 token (paymentToken, shares, or external APU token) by the Tribunal.
-    function judicialSeizeToken(address token, address to, uint256 amount) external onlyTribunal nonReentrant {
+    function judicialSeizeToken(address token, address to, uint256 amount, bytes32 categoryId)
+        external
+        onlyTribunal
+        nonReentrant
+    {
         require(token != address(0), "Invalid token");
         require(to != address(0) && to != address(this), "Invalid recipient");
         require(amount > 0, "Zero amount");
@@ -159,7 +164,7 @@ contract Consortium is ConsortiumTreasury {
             revenueDistributor.claimAccountFor(address(this));
             uint256 totalBal = paymentToken.balanceOf(address(this));
             require(amount <= totalBal, "Insufficient balance");
-            _routeJudicialPayment(to, amount);
+            _routeJudicialPayment(to, amount, categoryId);
             emit JudicialPaymentSeized(to, amount);
         } else if (token == address(shareToken)) {
             require(treasuryShares() >= amount, "Insufficient treasury shares");
@@ -172,9 +177,13 @@ contract Consortium is ConsortiumTreasury {
     }
 
     /// @notice Magister can execute operational expenditure within petty limit directly.
-    function spendOperating(address recipient, uint256 amount, bytes32 referenceId) external onlyMagister nonReentrant {
+    function spendOperating(address recipient, uint256 amount, bytes32 referenceId, bytes32 categoryId)
+        external
+        onlyMagister
+        nonReentrant
+    {
         require(amount <= pettyLimit, "Exceeds petty limit");
-        _spendOperating(recipient, amount, referenceId);
+        _spendOperating(recipient, amount, referenceId, categoryId);
     }
 
     /// @notice Magister claims device revenue from RevenueDistributor into operating balance.
@@ -190,7 +199,10 @@ contract Consortium is ConsortiumTreasury {
     }
 
     /// @notice Propose a governance action. Proposer must hold >= 1% of circulating voting shares.
-    function propose(ProposalType pType, bytes calldata data) external returns (uint256 proposalId) {
+    function propose(ProposalType pType, bytes calldata data, bytes32 categoryId)
+        external
+        returns (uint256 proposalId)
+    {
         uint256 supply = circulatingSupply();
         require(supply > 0, "No circulating shares");
         require(shareToken.balanceOf(msg.sender) >= supply / 100, "Must hold >= 1% circulating shares");
@@ -207,12 +219,10 @@ contract Consortium is ConsortiumTreasury {
             data: data
         });
 
-        bytes32 category = pType == ProposalType.RevenueDistribution
-            ? keccak256("CONSORTIUM_DISTRIBUTION")
-            : pType == ProposalType.TreasurySale ? keccak256("TREASURY_SHARE_SALE") : keccak256("OPERATING_EXPENSE");
         if (uint8(pType) >= 2) {
-            revenueDistributor.paymentRegistry().currentRule(category);
-            proposalRuleRevision[proposalId] = revenueDistributor.paymentRegistry().currentRevision(category);
+            proposalCategory[proposalId] = categoryId;
+            revenueDistributor.paymentRegistry().currentRule(categoryId);
+            proposalRuleRevision[proposalId] = revenueDistributor.paymentRegistry().currentRevision(categoryId);
         }
         emit ProposalCreated(proposalId, pType, msg.sender);
     }
@@ -288,11 +298,19 @@ contract Consortium is ConsortiumTreasury {
                 abi.decode(prop.data, (address, uint256, bytes32));
             require(amount <= majorLimit, "Exceeds major limit");
             _spendOperating(
-                recipient, amount, referenceId, proposalRuleRevision[proposalId], prop.openedAt, prop.deadline
+                recipient,
+                amount,
+                referenceId,
+                proposalRuleRevision[proposalId],
+                prop.openedAt,
+                prop.deadline,
+                proposalCategory[proposalId]
             );
         } else if (prop.pType == ProposalType.RevenueDistribution) {
             uint256 amount = abi.decode(prop.data, (uint256));
-            _allocateDistributable(amount, proposalRuleRevision[proposalId], prop.openedAt, prop.deadline);
+            _allocateDistributable(
+                amount, proposalRuleRevision[proposalId], prop.openedAt, prop.deadline, proposalCategory[proposalId]
+            );
         } else if (prop.pType == ProposalType.TreasurySale) {
             (address buyer, uint256 sharesAmount, uint256 totalEUR) = abi.decode(prop.data, (address, uint256, uint256));
             require(buyer != address(0) && msg.sender == buyer, "Only authenticated buyer");
@@ -300,7 +318,7 @@ contract Consortium is ConsortiumTreasury {
             revenueDistributor.payFor(
                 PaymentSettlement.Payment(
                     keccak256(abi.encode(address(this), proposalId)),
-                    keccak256("TREASURY_SHARE_SALE"),
+                    proposalCategory[proposalId],
                     proposalRuleRevision[proposalId],
                     0,
                     address(this),

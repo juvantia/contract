@@ -187,7 +187,6 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
             : paymentRegistry.quotedRule(p.categoryId, p.revision, p.issuedAt, p.expiresAt);
         require(rule.publicAccess || rule.sourceRoles & sourceRoles[msg.sender] != 0, "Restricted category");
         require(rule.destinations & (1 << p.kind) != 0, "Invalid destination kind");
-        require(rule.servicePrice == 0 || p.gross == rule.servicePrice, "Incorrect service price");
         // Raw calls cannot choose a historical rate, even for public commercial categories.
         require(p.revision == 0 || sourceRoles[msg.sender] != 0 || p.issuedAt != 0, "Invalid revision");
         if (p.revision == 0) p.revision = paymentRegistry.currentRevision(p.categoryId);

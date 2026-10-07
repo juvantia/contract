@@ -59,29 +59,33 @@ contract JuvantiaAerarium is Ownable, ReentrancyGuard {
         emit TaxReceived(msg.sender, amount, categoryId);
     }
 
-    function spend(address recipient, uint256 amount, string calldata purpose) external onlyOwner nonReentrant {
-        _spend(recipient, amount, purpose);
-    }
-
-    function spendReviewed(address recipient, uint256 amount, string calldata purpose, uint256 expectedRevision)
+    function spend(address recipient, uint256 amount, string calldata purpose, bytes32 categoryId)
         external
         onlyOwner
         nonReentrant
     {
-        require(paymentRegistry.currentRevision(keccak256("BUDGET_EXPENSE")) == expectedRevision, "Rule changed");
-        _spend(recipient, amount, purpose);
+        _spend(recipient, amount, purpose, categoryId);
     }
 
-    function _spend(address recipient, uint256 amount, string calldata purpose) internal {
+    function spendReviewed(
+        address recipient,
+        uint256 amount,
+        string calldata purpose,
+        bytes32 categoryId,
+        uint256 expectedRevision
+    ) external onlyOwner nonReentrant {
+        require(paymentRegistry.currentRevision(categoryId) == expectedRevision, "Rule changed");
+        _spend(recipient, amount, purpose, categoryId);
+    }
+
+    function _spend(address recipient, uint256 amount, string calldata purpose, bytes32 categoryId) internal {
         require(recipient != address(0) && amount > 0, "Invalid payment");
         require(bytes(purpose).length > 0, "Empty purpose");
         IBudgetSettlement(revenueDistributor).claimAccountFor(address(this));
         totalSpent += amount;
         revenueToken.forceApprove(revenueDistributor, amount);
         IBudgetSettlement(revenueDistributor)
-            .pay(
-                keccak256("BUDGET_EXPENSE"), keccak256(abi.encode(totalSpent, recipient, purpose)), amount, 0, recipient
-            );
+            .pay(categoryId, keccak256(abi.encode(totalSpent, recipient, purpose)), amount, 0, recipient);
         emit TreasurySpent(recipient, amount, purpose);
     }
 }

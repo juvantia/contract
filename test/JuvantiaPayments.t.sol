@@ -103,7 +103,7 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
     function testUnknownInactiveAndInvalidTaxRevertAtomically() public {
         vm.expectRevert("Unknown rule");
         revenue.pay(bytes32(uint256(1)), bytes32(uint256(2)), 1, 0, alice);
-        JuvantiaPaymentRegistry.Rule memory rule = JuvantiaPaymentRegistry.Rule(false, true, 1, 0, 0, 0);
+        JuvantiaPaymentRegistry.Rule memory rule = JuvantiaPaymentRegistry.Rule(false, true, 1, 0, 0);
         registry.publish(keccak256("OFF"), rule);
         vm.expectRevert("Inactive rule");
         revenue.pay(keccak256("OFF"), bytes32(uint256(2)), 1, 0, alice);
@@ -118,7 +118,7 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
     function testFuzzConservationAndRounding(uint96 raw, uint16 tax_) public {
         uint256 gross = bound(raw, 1, 100_000 ether);
         uint16 tax = uint16(bound(tax_, 0, 10000));
-        registry.publish(keccak256("COMMERCIAL"), JuvantiaPaymentRegistry.Rule(true, true, 1, tax, 0, 0));
+        registry.publish(keccak256("COMMERCIAL"), JuvantiaPaymentRegistry.Rule(true, true, 1, tax, 0));
         uint256 beforeBalance = euroToken.balanceOf(address(this));
         revenue.pay(keccak256("COMMERCIAL"), keccak256("conservation"), gross, 0, alice);
         assertEq(beforeBalance - euroToken.balanceOf(address(this)), gross);
@@ -132,7 +132,7 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
 
     function testAddressedClaimAllAndJudicialEncumbrance() public {
         revenue.pay(keccak256("OPERATING_RECEIPT"), keccak256("address"), 10 ether, 0, alice);
-        revenue.distributeRevenue(address(asset), 20 ether);
+        revenue.distributeRevenue(address(asset), 20 ether, keccak256("ASSET_REVENUE"));
         revenue.setTribunal(address(this));
         revenue.setEncumbrance(alice, true);
         address[] memory assets = new address[](1);
@@ -159,7 +159,7 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         revenue.pay(keccak256("OPERATING_RECEIPT"), keccak256("civic-receipt"), 10 ether, 0, address(aerarium));
         assertEq(euroToken.balanceOf(address(aerarium)), 0);
         assertEq(revenue.accountRevenue(address(aerarium)), 10 ether);
-        aerarium.spendReviewed(carol, 6 ether, "equipment", 1);
+        aerarium.spendReviewed(carol, 6 ether, "equipment", keccak256("BUDGET_EXPENSE"), 1);
         assertEq(revenue.accountRevenue(address(aerarium)), 0);
         assertEq(revenue.accountRevenue(carol), 6 ether);
         assertEq(euroToken.balanceOf(address(aerarium)), 4 ether);
@@ -173,8 +173,8 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         assertEq(aerarium.getTaxRateBps(keccak256("LEASING")), 1000);
         _publish("BUDGET_EXPENSE", false, 1, 16, 1000);
         vm.expectRevert("Rule changed");
-        aerarium.spendReviewed(carol, 6 ether, "equipment", 1);
-        aerarium.spendReviewed(carol, 6 ether, "equipment", 2);
+        aerarium.spendReviewed(carol, 6 ether, "equipment", keccak256("BUDGET_EXPENSE"), 1);
+        aerarium.spendReviewed(carol, 6 ether, "equipment", keccak256("BUDGET_EXPENSE"), 2);
         assertEq(euroToken.balanceOf(carol), 0);
         assertEq(revenue.accountRevenue(carol), 5.4 ether);
         assertEq(aerarium.totalSpent(), 6 ether);

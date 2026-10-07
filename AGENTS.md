@@ -42,7 +42,7 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; forwards seller proceeds atomically to RevenueDistributor and has no withdrawal method. Unsold shares retain their seller's revenue rights. |
 | **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
 | **`JuvantiaAerarium.sol`** | Central budget | Immediate tax custody, registry-delegated tax reads, and owner-authorized spending through Distributor. |
-| **`JuvantiaPaymentRegistry.sol`** | Non-upgradeable rule registry | Owner-published category revisions, taxes, permitted destinations/sources, optional fixed prices and invoice issuer grants. |
+| **`JuvantiaPaymentRegistry.sol`** | Non-upgradeable rule registry | Owner-published category revisions, taxes, permitted destinations/sources, invoice issuer grants; no seller prices. |
 | **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Operating custody and governed allocation of owners' revenue earnings into RevenueDistributor; read-only views of its distributed reserve. |
 | **`community/Consortium.sol` / `Syndicate.sol`** | Cloneable organizations | Authorized operating settlement, Consortium owners' allocation, Syndicate quotas/refunds, governance and Tribunal enforcement. |
@@ -67,7 +67,7 @@ Core signs the recipient snapshot; Distributor does not read Core's rental state
 Core's recipient switching, agreement snapshots and scoped workshop/Link access are implemented.
 Actual monetary acceptance still requires the selected chain and receipt-verified activation. See [leasing requirements](../core/docs/LEASING.md)
 and [implementation TODO](../core/docs/PAYMENT_TODO.md).
-Current Registry-price fields and hardcoded service categories still require alignment;
+Seller service/order data now supplies prices and categories; no names or prices are compiled into settlement.
 see [implementation differences](../core/docs/PAYMENT_IMPLEMENTATION.md). The source behavior
 below is a technical reference, not an expansion of the clarified business requirements.
 
@@ -93,7 +93,7 @@ No automatic historical balance migration.
 - Tax enters Aerarium immediately; addressed net accrue inside Distributor.
   Asset-pool net uses transfer-aware accrual; trade proceeds belong to the particular seller.
   Collection of already-accrued funds adds no new levy.
-- Consortium allocation is a distinct taxable operation under CONSORTIUM_DISTRIBUTION.
+- Consortium allocation is a distinct taxable operation under the category bound in its governance proposal.
   Governance approves gross and eligible owners accrue net. The second account is in
   Distributor, outside operating custody. Treasury shares, including attributed escrow,
   earn nothing from that pool. There is no local Consortium owner payout/index.

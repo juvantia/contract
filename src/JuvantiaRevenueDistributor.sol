@@ -168,13 +168,13 @@ contract JuvantiaRevenueDistributor is PaymentSettlement {
         emit RevenueDistributed(asset, source, amount, cumulativeIndex[asset]);
     }
 
-    /// @notice Compatibility entry; the published ASSET_REVENUE rule now applies.
-    function distributeRevenue(address asset, uint256 amount) external nonReentrant {
+    /// @notice Fund an ownership pool using the seller-selected published category.
+    function distributeRevenue(address asset, uint256 amount, bytes32 categoryId) external nonReentrant {
         require(registeredAssets[asset], "Unknown asset");
         _settle(
             Payment(
                 keccak256(abi.encode(msg.sender, asset, ++fundingNonce, amount)),
-                keccak256("ASSET_REVENUE"),
+                categoryId,
                 0,
                 1,
                 asset,
