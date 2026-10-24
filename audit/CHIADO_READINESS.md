@@ -7,7 +7,10 @@ Original findings and ten unsafe-behavior reproductions remain in
 **Source corrections are implemented and locally verified. The owner authorized a direct
 Chiado testnet deployment. The deployer is restored, Core signing is configured locally,
 and the owner explicitly deferred Tribunal.**
-No deployment transaction has been sent and no canonical address or receipt is asserted.
+The full stack is now receipt-verified on Chiado: 29 successful transactions, 15 matching
+deployed runtimes and 46 role/dependency/proxy checks, at block 23669346. Canonical addresses,
+receipts and all integration ABIs are in [the release export](../deployments/chiado-10200/deployment.json).
+Paid lifecycle acceptance and server/client activation remain separate work.
 
 ## Network and signing configuration check — 2026-10-24
 

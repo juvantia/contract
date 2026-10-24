@@ -9,9 +9,9 @@
 ## 🏛️ Description & System Role
 The `contract` repository contains the smart contracts governing Real-World Asset (RWA) tokenization, fractional share trading, and revenue distribution across the Juvantia ecosystem.
 
-The configurable ZeroDev migration is in progress, not deployed. The owner selected Chiado
-(chain ID 10200) for the forthcoming test deployment on 2026-10-24. Historical deployments
-and addresses are not defaults for this fresh configured stack.
+The configurable ZeroDev migration remains incomplete across services. The fresh contract stack
+was deployed and receipt-verified on Chiado (chain ID 10200) on 2026-10-24. Its canonical
+registry is `deployments/chiado-10200/deployment.json`; historical addresses are not defaults.
 The payment asset is configured through EURO_TOKEN_ADDRESS and EURO_TOKEN_DECIMALS; verify
 actual token decimals on chain. Do not query/store its symbol. All money uses integer base units.
 Old economic state and addresses are not migration targets. See [DEPLOYMENTS.md](DEPLOYMENTS.md)
@@ -187,7 +187,11 @@ The monetary authority and accounting boundaries are:
 
 ## 📍 Deployment Status
 
-No new configurable deployment has been performed. Full deployment requires all community contracts/factories, role wiring, ABI/address/deployment-block registry export and receipt-verified smoke tests. Never invent addresses or mark successful compilation as deployment.
+The full configured Chiado contract stack is receipt-verified: 29 successful transactions,
+15 matching deployed runtimes, 46 binding checks and exported ABI/address/block records.
+See `DEPLOYMENTS.md` and `deployments/chiado-10200/deployment.json`. Tribunal is explicitly
+disabled. Server/client activation, tax-category publication and paid lifecycle acceptance
+remain separate work. Never infer activation from compilation or historical addresses.
 
 Settlement source/tests are implemented; this does not establish complete Core readiness.
 Core still has incomplete consent verification, community deployment receipt/caller checks,

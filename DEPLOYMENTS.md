@@ -1,20 +1,34 @@
 # Juvantia Smart Contract Deployments
 
-## Chiado release preparation — 2026-10-24
+## Verified Chiado deployment — 2026-10-24
 
-The owner selected Chiado (chain ID 10200). No new stack has been broadcast or receipt-verified.
-Direct testnet deployment is now authorized. The owner-supplied payment token was checked
-through read-only RPC: code is present and decimals are 18. The ignored local `.env` contains
-these verified network/token fields and public role settings. The restored encrypted
-`juvantia_admin` keystore unlocks to the expected deployer. A fresh Core service key is stored
-only in ignored local `core/.env`, identically in both signing settings. The owner explicitly
-deferred Tribunal: `TRIBUNAL_ADDRESS` is zero and judicial operations are disabled.
-An independent fork acceptance run is not required by the owner. No project deployment
-address, receipt or deployment block is asserted by these checks.
-The source corrections in [the readiness review](audit/CHIADO_READINESS.md) close the agreed
-escrow/Tribunal, voting, protected-rank, spending and quote-boundary findings. Verification:
-172 normal tests, formatting and build/sizes pass. Full-stack simulation uses a local test
-token; an approved Chiado token/configuration and real-network simulation are still required.
+The full stack is deployed on Gnosis Chiado (chain ID 10200), from source revision
+`a061464`. All 29 deployment/configuration transactions have successful RPC-verified receipts,
+in blocks 23669318–23669346. All 15 deployed runtimes match the compiled artifacts (immutable
+slots excluded from byte comparison and dependencies checked through getters). The verification
+also checks 46 values: ownership, shared Core identity, token decimals, contract dependencies,
+source/registrar/escrow roles and all four ERC-1967 implementation slots.
+
+The canonical [deployment registry](deployments/chiado-10200/deployment.json) includes every
+address, creation transaction, deployment block, receipt block hash and runtime SHA-256.
+The adjacent `abi/` directory exports all 11 integration ABIs from the verified build.
+Reproduce verification with:
+
+```sh
+python3 script/verify_deployment.py broadcast/DeployJuvantia.s.sol/10200/run-latest.json deployments/chiado-10200
+```
+
+The restored encrypted `juvantia_admin` is the initial owner. The owner-requested fresh Core
+service key is stored only in ignored local `core/.env` (mode 600), identically in both signing
+settings. It is authorized in Registry and both factories. No secret was exported or committed.
+The temporary deployer password file was removed after broadcasting. The running VPS Core
+service has not been reconfigured or activated by this deployment.
+
+The owner explicitly deferred Tribunal: its address is zero in Distributor, Fabrica and both
+community factories. Judicial operations remain disabled. The agreed escrow, voting, protected
+rank, spending and quote-boundary source corrections pass all 172 tests, formatting and build
+size checks. Real-network Forge simulation and sequential broadcast both completed successfully.
+An independent fork acceptance run is not required by the owner.
 
 The full deployment now requires explicit `DEPLOYER_ADDRESS`, token decimals and all Core/
 Tribunal settings in [.env.example](.env.example). The expected deployer is the initial owner;
@@ -31,9 +45,9 @@ the encrypted account is selected for an explicit broadcast. The entry point rej
 Consortium creation vouchers now sign the owners' initial `pettyLimit`/`majorLimit` base-unit
 package. Core's deferred organization-creation path needs that matching voucher ABI before
 enablement. The new factory/asset/community source is for fresh instances, not an automatic
-upgrade or migration of historical clones. All address/block/receipt entries below remain pending.
+upgrade or migration of historical clones. All canonical address/block/receipt entries below are backed by successful RPC receipts.
 
-## Current status — 2026-10-06
+## Historical preparation — 2026-10-06
 
 There is currently no canonical deployment for the configurable ZeroDev universal-settlement
 stack. The user is still selecting the network. No on-chain transactions were broadcast by the
@@ -127,19 +141,35 @@ use a fresh configured-stack deployment; the non-upgradeable Registry is not upg
 Consortium allocation has its own tax; collecting existing credits has no new levy.
 TradeHub.pendingWithdrawals is a compatibility read, and TradeHub has no euro withdraw route.
 
-## Canonical receipt record — pending
+## Canonical receipt record — Chiado 10200
 
-After a receipt-verified deployment, record the configured blockchain ID,
-deployment block, proxy and implementation addresses here. Historical deployment
-addresses are intentionally not accepted as defaults by scripts or services.
+Verified at block `23669346`, hash `0x45001b9f12817085ec8e1f888d20ad927b295f881e1b68b0e640e7aadacd8ded`.
+Payment token: `0x7a47605930002cc2cd2c3c408d1f33fc2a18ab71`, decimals `18`.
+Core public signer: `0x5002d9895e30a097d69dd64e98899158eb1c7610`. Tribunal: explicitly disabled (zero).
 
-For each verified deployment/upgrade record chain ID, contract role, address, proxy/implementation
-relationship, transaction hash, successful receipt block and source revision. Record owner rule
-publication category/revision and issuer/source/registrar configuration evidence as well.
-This section contains no records because no new canonical deployment has been verified.
+| Role | Address | Creation block | Creation transaction |
+| --- | --- | ---: | --- |
+| aerarium | `0x8f0fce54c6e16de7a624434924cb02c9a1ca548f` | 23669318 | `0xfae54633aa326b3b19d0cc31a86dfcf1f1166c80a1d29f56e488afa2336f2cca` |
+| revenue | `0x348cbd92ba4fbe9b620a64dc9206a56bc5239dfc` | 23669319 | `0xd5ed5dbd77adfa31ff24e46fb4c156c79a638ea6ec8ee99d91c479abc3005648` |
+| registry | `0xfbda454aea593ff61f28158f1a088e7a363bdf3c` | 23669320 | `0x7b789ac734d976bb662372e2564169a335f2f9485e866355213dc25dc5bb8b3f` |
+| assetImplementation | `0x44e69de7d68514533a5a57acf3f61e03b21fb5b3` | 23669325 | `0x3d18861084d74f051a74cc8dd5a33c2d39d729a9a1be5330cba994a1f3fc9583` |
+| fabricaImplementation | `0x5d73a2668265d60d01bfe8454d091ed0b8f8c12a` | 23669326 | `0xa7c02d3caff7f27008819f79c1ed3f7fe80f21e0839ab557092810b71a01d7a9` |
+| fabrica | `0x6eeeb06caf77900b8122cf4521e7e68d0ac00057` | 23669327 | `0x31530284caaf7b6567e0e30e800515a718070071640274690f76d223a4f7e3e6` |
+| tradeImplementation | `0x367c75ed357457b2881f85cb0ee2bccfe3fcb929` | 23669329 | `0x8cbb945bf7ee96dddc387ae97a5facf1817939118831db80896676f36f8931eb` |
+| trade | `0x8271615888d1d3e6868487a5ac276cb3179bed97` | 23669330 | `0x2d64155e56cc538b7731ca3201af59b47d83ab1ed2d07d7932b9f8a47da6ca51` |
+| services | `0xdbb173e9665fe776ed9f870607d2e39b0a1e9469` | 23669333 | `0x72de659007032a5c18e79af46d0167e98b907c9115f3f7d7004b7c7dccf46d4e` |
+| consortiumImplementation | `0xfc652ccfd32b59c71e5092b9966f8235e99af76c` | 23669335 | `0x27b3c8fa39e68c10565189d43a0bc692aede72460af4e222aef5d648e5143ec0` |
+| consortiumFactoryImplementation | `0x7e68fdda1cfb6b610986c22ca26c11b414b16f6c` | 23669336 | `0x9ee7c3b088be2b32c46c3c5b9c2e6834cabe9855a083c11deb65ec7dbda9816c` |
+| consortiumFactory | `0xa497f79ef7a5bcb87dc5799a12c8f01a92489b23` | 23669337 | `0x1f8b605a9908d9dcc2ced70f7bf2a382c7ba2c32520f0dcb90bc9ba1d3470526` |
+| syndicateImplementation | `0xa1c87b65c004de1463a8c2d8aed0b37ab1d56803` | 23669340 | `0xa40f3755e1c4d6d46ac2156f05d7dab33cc5e030e7d32428db278698af34eedb` |
+| syndicateFactoryImplementation | `0xc89c3969fc73d0f5d090a97f790226e6707f69fa` | 23669341 | `0x201cf558aacf8476fa5ce0e345ca9a3db7701419f61392fc44d11baeb4465e17` |
+| syndicateFactory | `0xe1df824c17babcc05cdd8a423cd8c589edb087f1` | 23669342 | `0x7070c3f6a333ddefe22202cc84fb7c4b47ba1d4145b8915dc02f9383a3f50270` |
 
-No old clones, balances or economic state migrate automatically. Backend builds/deployments
-and Android/iOS JavaScript exports do not establish on-chain activation or a native binary/OTA release.
+All creation and configuration receipts and proxy relationships are also recorded in the
+[machine-readable registry](deployments/chiado-10200/deployment.json). No old clones, balances
+or economic state migrate automatically. Tax-category publication, real paid lifecycle acceptance
+and server/client activation remain separate work; this record verifies the contract deployment.
+Native binary/OTA publication has not occurred.
 
 ## Seller category and price release update — 2026-10-07
 

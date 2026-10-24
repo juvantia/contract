@@ -10,6 +10,8 @@ out/
 !/broadcast
 /broadcast/*/31337/
 /broadcast/**/dry-run/
+# Export verified public release records under deployments instead of raw broadcast logs.
+/broadcast/DeployJuvantia.s.sol/10200/
 
 # Docs
 docs/
@@ -22,3 +24,6 @@ docs/
 # Internal Documentation
 GEMINI.md
 DEPLOYMENTS.md
+
+# Python verifier cache
+__pycache__/
