@@ -13,6 +13,24 @@ by Chiado's [Dencun upgrade](https://docs.gnosischain.com/about/specs/hard-forks
 See the [official network record](https://docs.gnosischain.com/about/networks/chiado).
 The payment token, actual decimals and temporary Tribunal identity still need release selection.
 
+## Owner clarifications after the initial review — 2026-10-24
+
+These session decisions take precedence over older Notion and local descriptions. They are
+requirements for the fixes, not claims that runtime code has changed:
+
+- **EURO-only Tribunal:** court requirements and recovery are in the configured EURO token
+  only. There is no judicial APU seizure. The corrective action for H1 is to remove forbidden
+  share/other-token recovery powers, retaining bounded EURO recovery. An escrow-aware APU
+  seizure route is not wanted. Both organization wrappers and asset-token methods must be covered.
+- **Consortium snapshots:** historical ownership and voting-supply snapshots are selected
+  over locking voting shares. H2 remains open until the selected model is implemented and tested.
+- **Spending thresholds:** Petty 50.001%, Major 65%. The monetary tier boundary, any separate
+  unilateral allowance and approval for changing the package remain to be clarified. The
+  existing direct Magister petty-spending permission does not implement this voting model.
+- **Syndicate examples requested:** the owner considers a genuine decision with sufficient
+  votes legitimate. H3 concerns execution without those votes. See the concrete cases below;
+  no new demotion-policy choice is inferred from this discussion.
+
 ## Scope and evidence
 
 Reviewed all settlement, asset, marketplace and community runtime contracts, the four
@@ -60,10 +78,12 @@ Alice's order reverts. This requires an authorized Tribunal operation, not an ar
 Conversely, a judicial transfer directly from the listed seller fails because the physical
 shares are held by TradeHub. Ordinary seller-targeted seizure cannot reach listed ownership.
 
-Required: an atomic, escrow-aware judicial route that reconciles the selected seller/order,
-custody, revenue checkpoints and beneficial ownership. Prevent unreconciled transfers out of
-attributed custody. Clamping a negative effective balance alone does not remove duplicate
-seller entitlement. Test solvency across account credits, multiple asset pools and trade proceeds.
+Required under the owner's EURO-only clarification: remove Tribunal authority to move APU
+from asset wallets, marketplace custody and organization treasuries, including generic token
+wrappers. Preserve judicial recovery of EURO from the debtor's recorded monetary balances.
+An escrow-aware APU seizure route was considered in the initial review and is superseded by
+this clarification. Test that forbidden share seizure is unavailable and that EURO recovery
+preserves solvency across account credits, asset pools and trade proceeds.
 
 Proofs: `testAuditJudicialTransferFromEscrowDuplicatesRevenueAndStealsOtherCredits` and
 `testAuditDirectSellerSeizureCannotReachListedShares`.
@@ -78,12 +98,12 @@ address, votes again, then repeats with a third address. The reproduction elects
 holder as Magister. Other financial proposal thresholds can be crossed the same way.
 The denominator also uses live circulating supply, without a proposal-bound snapshot.
 
-Required decision: snapshot ownership/supply or lock voting shares for the proposal.
+Selected correction: historical ownership/supply snapshots for each proposal. The owner
+explicitly chose snapshots over locking shares after the initial review.
 The [Consortium task](https://app.notion.com/p/3d7fbac38ebd81629117d679f493ccd0)
 is marked Done but its voting-transfer protection acceptance item is unchecked.
 The [business specification](https://app.notion.com/p/3b7fbac38ebd818b8c39f120bba07dea)
-currently describes live balances, so switching to snapshots needs an explicit policy decision.
-The owner was asked which model to adopt.
+currently describes live balances; that description is superseded by the owner's snapshot choice.
 
 Proof: `testAuditSameSharesVoteThreeTimesToElectMinorityCandidate`.
 
@@ -106,6 +126,20 @@ on every entry point, and test that lowering rank cannot bypass the original mem
 
 Proofs: `testAuditPrimusDemotesAndKicksEqualCofounderWithoutApproval` and
 `testAuditAnyMemberCanUnilaterallyDemoteCofounderThroughAction`.
+
+Concrete cases, using DominantLeadership weights:
+
+1. Alice/Primus, Bob and Carol are Grade 6 with 32 votes each. A Grade-1 newcomer has 1
+   vote, for a total of 97. The newcomer alone proposes to lower Bob to Grade 1. The generic
+   action path automatically records the newcomer's one vote, then reads the new Grade-1
+   admission threshold of zero and executes. Alice, Bob and Carol give no approval.
+2. With just the three equal founders, Alice alone cannot expel Grade-6 Bob: she has 32
+   of the eligible 64 votes, below the required 80%. Alice directly lowers Bob to Grade 2
+   without a vote, then removes him. Grade-2 removal requires 50% of the remaining 64,
+   which Alice's 32 meets exactly. Carol never approves either step.
+
+An actual collective vote meeting the protected member's threshold would be legitimate.
+These cases instead bypass that threshold through the new-rank admission rule.
 
 ### H4 — Stale Syndicate kick actions corrupt membership or remove the current Primus
 
@@ -145,6 +179,12 @@ spending-package choices as unresolved. MajorExpenditure also uses the lower ele
 
 Required decision: confirm the package, initial configuration and approval thresholds before
 changing the ABI/governance. The owner was asked to select the intended package.
+
+Subsequent owner clarification: Petty 50.001%, Major 65%. These refer to the requested
+spending approval tiers, whereas the earlier 65% discussion concerned changing the package.
+Do not conflate those decisions. The monetary boundary, any unilateral allowance and the
+package-change threshold still need clarification; the current source implements neither
+a Petty expense vote nor a 65% Major expense vote.
 
 Proof: `testAuditSixtyPercentCanChangeLimitsDespiteSixtyFivePercentRequirement`.
 
@@ -216,7 +256,8 @@ Proof: `testAuditScriptAcceptsDifferentCoreSignersAndDisabledTribunal`.
 
 ## Conditions to reverse the decision
 
-1. Resolve H1-H4 and add regression/invariant coverage for custody conservation, shared-vault
+1. Resolve H1-H4 under the owner's clarifications: EURO-only judicial recovery, historical
+   voting snapshots, and regression/invariant coverage for custody conservation, shared-vault
    solvency, one effective vote per share, protected ranks and membership enumeration.
 2. Confirm H5 governance policy, decimals and the required community feature scope. Correct
    M1 and add the M2 deployment preflight checks.

@@ -9,8 +9,9 @@
 ## 🏛️ Description & System Role
 The `contract` repository contains the smart contracts governing Real-World Asset (RWA) tokenization, fractional share trading, and revenue distribution across the Juvantia ecosystem.
 
-The configurable ZeroDev migration is in progress, not deployed. The user is still selecting the
-network; do not assume historic Arc/Chiado profiles are the selected deployment target.
+The configurable ZeroDev migration is in progress, not deployed. The owner selected Chiado
+(chain ID 10200) for the forthcoming test deployment on 2026-10-24. Historical deployments
+and addresses are not defaults for this fresh configured stack.
 The payment asset is configured through EURO_TOKEN_ADDRESS and EURO_TOKEN_DECIMALS; verify
 actual token decimals on chain. Do not query/store its symbol. All money uses integer base units.
 Old economic state and addresses are not migration targets. See [DEPLOYMENTS.md](DEPLOYMENTS.md)
@@ -132,13 +133,35 @@ See [Core signing roles](../core/docs/SIGNING.md).
 
 ### 5. Multi-Model Tribunal & Judicial Encumbrance Architecture
 
-To enforce legal decisions, court verdicts, and restitution onchain without compromising financial precision, Juvantia contracts integrate judicial authority (`tribunal`):
-- **Asset Seizure (`JuvantiaAsset.sol`):** `judicialTransfer` and `judicialSeize` allow the Tribunal to forcibly reassign APU share tokens from a defendant to a claimant or treasury.
-- **Corporate Seizure (`Consortium.sol` / `Syndicate.sol`):** `judicialSeizePayment` and `judicialSeizeToken` permit direct confiscation of operating EURO or held asset tokens by judicial decree.
+**Owner clarification — 2026-10-24:** Tribunal may recover only the configured EURO payment
+token. Court requirements are denominated in EURO; Tribunal has no authority to seize or
+reassign APU shares or arbitrary other tokens. Existing asset `judicialTransfer`/`judicialSeize`,
+Consortium `judicialSeizeShares` and generic organization `judicialSeizeToken` paths still
+expose forbidden capabilities in the current source. Remove or restrict those paths before
+deployment; do not implement an escrow-aware APU seizure route as a substitute. The findings
+and reproductions in [the Chiado review](audit/CHIADO_READINESS.md) are not fixes.
+
+The monetary authority and accounting boundaries are:
+
+- **Organization EURO recovery (`Consortium.sol` / `Syndicate.sol`):** judicial recovery may debit only the organization's available EURO under its explicitly authorized principal rules; it grants no APU transfer power.
 - **Revenue Distributor Encumbrance & Seizure (`JuvantiaRevenueDistributor.sol`):**
   - **Account Encumbrance (`setEncumbrance`):** The Tribunal can place an encumbrance/freeze on any account address (`encumbered[account] = true`). Encumbered accounts are strictly barred from claiming accrued revenue (`claim`, `claimFor`).
   - **Judicial Revenue Seizure (`judicialClaim` / `judicialSeize`):** The Tribunal can seize an account's accrued EURO revenue (full balance or a specified fine/award amount) and redirect it immediately to a victim or court deposit.
   - **Accounting Precision:** Revenue checkpoints remain active during encumbrance, preserving mathematical precision and fair yield accrual while locking fund withdrawals until judicial release.
+
+### 6. Governance decisions awaiting implementation — 2026-10-24
+
+- Consortium voting must use historical ownership and voting-supply snapshots. The owner
+  selected snapshots over locking shares; the current live-balance voting code remains unfixed.
+- The owner specified spending approval thresholds of Petty 50.001% and Major 65%. These
+  are distinct from the current unilateral petty-spending gateway and the previous question
+  about approval for changing the spending-limit package. The monetary boundary between
+  tiers, any separate unilateral allowance and package-change authorization still need clarification.
+  Do not invent them or mark the new policy implemented.
+- Syndicate demotion/expulsion policy remains under discussion. Existing audit reproductions
+  show a Grade-1 member can demote a Grade-6 member without votes from anyone else and a
+  Primus can demote then expel an equal cofounder without the third cofounder's agreement.
+  Legitimate threshold-approved collective decisions are not the reported bypass.
 
 ---
 
