@@ -25,12 +25,14 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         address[] incorporators;
         uint256[] incorporatorShares;
         uint256 treasuryShares;
+        uint256 pettyLimit;
+        uint256 majorLimit;
         uint256 deadline;
         bytes32 salt;
     }
 
     bytes32 public constant CONSORTIUM_VOUCHER_TYPEHASH = keccak256(
-        "ConsortiumDeploymentVoucher(bytes32 draftId,string name,string symbol,address magister,address[] incorporators,uint256[] incorporatorShares,uint256 treasuryShares,uint256 deadline,bytes32 salt)"
+        "ConsortiumDeploymentVoucher(bytes32 draftId,string name,string symbol,address magister,address[] incorporators,uint256[] incorporatorShares,uint256 treasuryShares,uint256 pettyLimit,uint256 majorLimit,uint256 deadline,bytes32 salt)"
     );
 
     address public immutable consortiumImplementation;
@@ -109,6 +111,8 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
                     _hashAddresses(voucher.incorporators),
                     _hashUints(voucher.incorporatorShares),
                     voucher.treasuryShares,
+                    voucher.pettyLimit,
+                    voucher.majorLimit,
                     voucher.deadline,
                     voucher.salt
                 )
@@ -150,15 +154,7 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         JuvantiaAsset(assetClone)
             .initialize(voucher.name, voucher.symbol, address(this), owner(), address(revenueDistributor), tribunal);
 
-        Consortium(consortiumClone)
-            .initialize(
-                address(revenueDistributor.revenueToken()),
-                assetClone,
-                address(revenueDistributor),
-                voucher.magister,
-                owner(),
-                tribunal
-            );
+        _initializeConsortium(consortiumClone, assetClone, voucher);
 
         // Bind the Consortium treasury before distributing shares; its reserve never earns revenue.
         revenueDistributor.registerAsset(assetClone, consortiumClone);
@@ -180,6 +176,22 @@ contract ConsortiumFactory is UUPSUpgradeable, OwnableUpgradeable, EIP712Upgrade
         consortia.push(consortiumClone);
 
         emit ConsortiumCreated(voucher.draftId, consortiumClone, assetClone, voucher.magister);
+    }
+
+    function _initializeConsortium(address clone, address shares, ConsortiumDeploymentVoucher calldata voucher)
+        private
+    {
+        Consortium(clone)
+            .initialize(
+                address(revenueDistributor.revenueToken()),
+                shares,
+                address(revenueDistributor),
+                voucher.magister,
+                owner(),
+                tribunal,
+                voucher.pettyLimit,
+                voucher.majorLimit
+            );
     }
 
     function _authorizeUpgrade(address) internal override onlyOwner {}

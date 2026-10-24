@@ -228,6 +228,22 @@ contract JuvantiaRevenueDistributor is PaymentSettlement {
         emit JudicialRevenueClaim(address(0), from, to, amount);
     }
 
+    /// @notice Recover a fine from this seller's EURO sale proceeds only; shares stay in escrow.
+    function judicialClaimTrade(address asset, address from, address to, uint256 amount)
+        external
+        onlyTribunal
+        nonReentrant
+    {
+        require(registeredAssets[asset], "Unknown asset");
+        require(from != address(0) && to != address(0) && to != address(this), "Invalid account");
+        require(amount > 0 && amount <= tradeProceeds[asset][from], "Insufficient trade proceeds");
+        tradeProceeds[asset][from] -= amount;
+        pendingTradeProceeds[from] -= amount;
+        totalTradeClaimed[asset] += amount;
+        revenueToken.safeTransfer(to, amount);
+        emit JudicialRevenueClaim(asset, from, to, amount);
+    }
+
     /// @dev Called by the registered share token BEFORE balances change. Never sends funds.
     function checkpointTransfer(address from, address to) external {
         require(registeredAssets[msg.sender], "Unknown asset");

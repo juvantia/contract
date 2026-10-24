@@ -111,6 +111,8 @@ contract TribunalSeizureTest is ProtocolFixture {
             incorporators: incorporators,
             incorporatorShares: incorporatorShares,
             treasuryShares: 20_000 ether,
+            pettyLimit: 1_000 ether,
+            majorLimit: 50_000 ether,
             deadline: block.timestamp + 1 hours,
             salt: keccak256("salt-c-1")
         });

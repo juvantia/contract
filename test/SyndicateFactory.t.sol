@@ -6,7 +6,7 @@ import {SyndicateFactory} from "../src/community/SyndicateFactory.sol";
 import {Syndicate} from "../src/community/Syndicate.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
-contract SyndicateFactoryTest is ProtocolFixture {
+abstract contract SyndicateFactoryFixture is ProtocolFixture {
     SyndicateFactory internal factory;
     Syndicate internal syndicateImpl;
 
@@ -65,7 +65,9 @@ contract SyndicateFactoryTest is ProtocolFixture {
             salt: draftId
         });
     }
+}
 
+contract SyndicateFactoryTest is SyndicateFactoryFixture {
     function testCreateSyndicateWithValidVoucher() public {
         bytes32 draftId = keccak256("syn-draft-1");
         SyndicateFactory.SyndicateDeploymentVoucher memory voucher = _buildVoucher(draftId, 0); // DominantLeadership

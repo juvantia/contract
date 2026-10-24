@@ -1,5 +1,27 @@
 # Juvantia Smart Contract Deployments
 
+## Chiado release preparation — 2026-10-24
+
+The owner selected Chiado (chain ID 10200). No new stack has been broadcast or receipt-verified.
+The source corrections in [the readiness review](audit/CHIADO_READINESS.md) close the agreed
+escrow/Tribunal, voting, protected-rank, spending and quote-boundary findings. Verification:
+172 normal tests, formatting and build/sizes pass. Full-stack simulation uses a local test
+token; an approved Chiado token/configuration and real-network simulation are still required.
+
+The full deployment now requires explicit `DEPLOYER_ADDRESS`, token decimals and all Core/
+Tribunal settings in [.env.example](.env.example). The expected deployer is the initial owner;
+it, the single Core signer and Tribunal must be distinct nonzero authorities. Token decimals
+are read from the actual token, without its symbol, and checked against configuration.
+Supported token decimals are 0-72. `deploy.sh` simulates by default; actual broadcasting uses
+an explicit `--broadcast` after authorization. Simulation uses only the public sender;
+the encrypted account is selected for an explicit broadcast. The entry point rejects
+`--skip-simulation` and `--resume`; inspect actual receipts before any partial-deployment recovery.
+
+Consortium creation vouchers now sign the owners' initial `pettyLimit`/`majorLimit` base-unit
+package. Core's deferred organization-creation path needs that matching voucher ABI before
+enablement. The new factory/asset/community source is for fresh instances, not an automatic
+upgrade or migration of historical clones. All address/block/receipt entries below remain pending.
+
 ## Current status — 2026-10-06
 
 There is currently no canonical deployment for the configurable ZeroDev universal-settlement

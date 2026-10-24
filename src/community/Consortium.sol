@@ -7,6 +7,11 @@ import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
+interface IConsortiumVotingShares {
+    function getPastBalance(address account, uint256 blockNumber) external view returns (uint256);
+    function getPastTotalSupply(uint256 blockNumber) external view returns (uint256);
+}
+
 /// @notice Governed commercial entity implementation for Juvantia Consortia.
 contract Consortium is ConsortiumTreasury {
     using SafeERC20 for IERC20;
@@ -16,7 +21,8 @@ contract Consortium is ConsortiumTreasury {
         SpendingLimitsPackage,
         RevenueDistribution,
         TreasurySale,
-        MajorExpenditure
+        MajorExpenditure,
+        PettyExpenditure
     }
 
     struct Proposal {
@@ -42,6 +48,11 @@ contract Consortium is ConsortiumTreasury {
 
     mapping(uint256 => uint256) public proposalRuleRevision;
     mapping(uint256 => bytes32) public proposalCategory;
+
+    // Appended proposal terms: ownership and spending classification never change mid-vote.
+    mapping(uint256 => uint256) public proposalSnapshotBlock;
+    mapping(uint256 => uint256) public proposalVotingSupply;
+    mapping(uint256 => uint256) public proposalExpenseCap;
 
     event MagisterChanged(address indexed newMagister);
     event AdminChanged(address indexed oldAdmin, address indexed newAdmin);
@@ -71,40 +82,26 @@ contract Consortium is ConsortiumTreasury {
         _;
     }
 
-    function initialize(address token, address shares, address distributor, address initialMagister, address admin_)
-        external
-        initializer
-    {
-        _initialize(token, shares, distributor, initialMagister, admin_, address(0));
-    }
-
     function initialize(
         address token,
         address shares,
         address distributor,
         address initialMagister,
         address admin_,
-        address initialTribunal
+        address initialTribunal,
+        uint256 initialPettyLimit,
+        uint256 initialMajorLimit
     ) external initializer {
-        _initialize(token, shares, distributor, initialMagister, admin_, initialTribunal);
-    }
-
-    function _initialize(
-        address token,
-        address shares,
-        address distributor,
-        address initialMagister,
-        address admin_,
-        address initialTribunal
-    ) internal onlyInitializing {
         require(initialMagister != address(0), "Invalid magister");
         require(admin_ != address(0), "Invalid admin");
+        _validateLimits(initialPettyLimit, initialMajorLimit);
         _initializeTreasury(token, shares, distributor);
         magister = initialMagister;
         admin = admin_;
         tribunal = initialTribunal;
-        pettyLimit = 1_000 ether;
-        majorLimit = 50_000 ether;
+        pettyLimit = initialPettyLimit;
+        majorLimit = initialMajorLimit;
+        emit SpendingLimitsChanged(initialPettyLimit, initialMajorLimit);
     }
 
     function setTribunal(address newTribunal) external onlyAdmin {
@@ -176,14 +173,9 @@ contract Consortium is ConsortiumTreasury {
         }
     }
 
-    /// @notice Magister can execute operational expenditure within petty limit directly.
-    function spendOperating(address recipient, uint256 amount, bytes32 referenceId, bytes32 categoryId)
-        external
-        onlyMagister
-        nonReentrant
-    {
-        require(amount <= pettyLimit, "Exceeds petty limit");
-        _spendOperating(recipient, amount, referenceId, categoryId);
+    /// @notice Legacy selector fails closed: every expense now requires a shareholder proposal.
+    function spendOperating(address, uint256, bytes32, bytes32) external view onlyMagister {
+        revert("Expense requires proposal");
     }
 
     /// @notice Magister claims device revenue from RevenueDistributor into operating balance.
@@ -198,14 +190,31 @@ contract Consortium is ConsortiumTreasury {
         emit TreasuryTopUp(msg.sender, amount);
     }
 
-    /// @notice Propose a governance action. Proposer must hold >= 1% of circulating voting shares.
+    /// @notice Voting uses physical share balances from the completed block before opening.
+    /// Treasury holdings are excluded from that same historical voting-supply snapshot.
     function propose(ProposalType pType, bytes calldata data, bytes32 categoryId)
         external
         returns (uint256 proposalId)
     {
-        uint256 supply = circulatingSupply();
+        uint256 snapshot = block.number - 1;
+        IConsortiumVotingShares votingShares = IConsortiumVotingShares(address(shareToken));
+        uint256 supply =
+            votingShares.getPastTotalSupply(snapshot) - votingShares.getPastBalance(address(this), snapshot);
         require(supply > 0, "No circulating shares");
-        require(shareToken.balanceOf(msg.sender) >= supply / 100, "Must hold >= 1% circulating shares");
+        uint256 proposerWeight = votingShares.getPastBalance(msg.sender, snapshot);
+        require(msg.sender != address(this), "Treasury cannot propose");
+        if (pType == ProposalType.SpendingLimitsPackage) {
+            require(
+                msg.sender == magister || proposerWeight >= Math.mulDiv(supply, 5, 100, Math.Rounding.Ceil),
+                "Must hold >= 5% circulating shares"
+            );
+        } else {
+            require(
+                proposerWeight >= Math.mulDiv(supply, 1, 100, Math.Rounding.Ceil), "Must hold >= 1% circulating shares"
+            );
+        }
+
+        uint256 expenseCap = _validateProposal(pType, data);
 
         proposalId = ++proposalCount;
         proposals[proposalId] = Proposal({
@@ -218,6 +227,9 @@ contract Consortium is ConsortiumTreasury {
             executed: false,
             data: data
         });
+        proposalSnapshotBlock[proposalId] = snapshot;
+        proposalVotingSupply[proposalId] = supply;
+        proposalExpenseCap[proposalId] = expenseCap;
 
         if (uint8(pType) >= 2) {
             proposalCategory[proposalId] = categoryId;
@@ -228,14 +240,15 @@ contract Consortium is ConsortiumTreasury {
     }
 
     /// @notice Cast a vote on an active proposal.
-    function castVote(uint256 proposalId, bool support) external {
+    function castVote(uint256 proposalId, bool support) external nonReentrant {
         Proposal storage prop = proposals[proposalId];
         require(prop.openedAt != 0, "Proposal not found");
         require(block.timestamp <= prop.deadline, "Voting closed");
         require(!prop.executed, "Already executed");
         require(!hasVoted[proposalId][msg.sender], "Already voted");
 
-        uint256 weight = shareToken.balanceOf(msg.sender);
+        uint256 weight =
+            IConsortiumVotingShares(address(shareToken)).getPastBalance(msg.sender, proposalSnapshotBlock[proposalId]);
         require(weight > 0, "No voting weight");
         require(msg.sender != address(this), "Treasury cannot vote");
 
@@ -248,7 +261,7 @@ contract Consortium is ConsortiumTreasury {
 
         emit VoteCast(proposalId, msg.sender, support, weight);
 
-        if (_isThresholdMet(prop) && prop.pType != ProposalType.TreasurySale) {
+        if (_isThresholdMet(prop, proposalId) && prop.pType != ProposalType.TreasurySale) {
             _executeProposal(proposalId);
         }
     }
@@ -259,24 +272,47 @@ contract Consortium is ConsortiumTreasury {
         require(prop.openedAt != 0, "Proposal not found");
         require(block.timestamp <= prop.deadline, "Proposal expired");
         require(!prop.executed, "Already executed");
-        require(_isThresholdMet(prop), "Threshold not met");
+        require(_isThresholdMet(prop, proposalId), "Threshold not met");
 
         _executeProposal(proposalId);
     }
 
-    function _isThresholdMet(Proposal storage prop) internal view returns (bool) {
-        uint256 supply = circulatingSupply();
+    function _isThresholdMet(Proposal storage prop, uint256 proposalId) internal view returns (bool) {
+        uint256 supply = proposalVotingSupply[proposalId];
         if (supply == 0) return false;
 
-        if (
-            prop.pType == ProposalType.MagisterElection || prop.pType == ProposalType.SpendingLimitsPackage
-                || prop.pType == ProposalType.MajorExpenditure
-        ) {
+        if (prop.pType == ProposalType.MagisterElection) {
             return prop.forVotes > Math.mulDiv(supply, 50001, 100000); // > 50.001%
+        } else if (prop.pType == ProposalType.PettyExpenditure) {
+            return prop.forVotes >= Math.mulDiv(supply, 50001, 100000, Math.Rounding.Ceil); // >= 50.001%
+        } else if (prop.pType == ProposalType.SpendingLimitsPackage || prop.pType == ProposalType.MajorExpenditure) {
+            return prop.forVotes >= Math.mulDiv(supply, 65000, 100000, Math.Rounding.Ceil); // >= 65%
         } else if (prop.pType == ProposalType.RevenueDistribution || prop.pType == ProposalType.TreasurySale) {
-            return prop.forVotes >= Math.mulDiv(supply, 75000, 100000); // >= 75.000%
+            return prop.forVotes >= Math.mulDiv(supply, 75000, 100000, Math.Rounding.Ceil); // >= 75%
         }
         return false;
+    }
+
+    function _validateLimits(uint256 petty, uint256 major) private pure {
+        require(petty > 0 && major >= petty, "Invalid spending limits");
+    }
+
+    function _validateProposal(ProposalType pType, bytes calldata data) private view returns (uint256 cap) {
+        if (pType == ProposalType.SpendingLimitsPackage) {
+            (uint256 petty, uint256 major) = abi.decode(data, (uint256, uint256));
+            _validateLimits(petty, major);
+        } else if (pType == ProposalType.MajorExpenditure || pType == ProposalType.PettyExpenditure) {
+            (address recipient, uint256 amount, bytes32 referenceId) = abi.decode(data, (address, uint256, bytes32));
+            require(recipient != address(0) && recipient != address(this), "Invalid recipient");
+            require(amount > 0 && referenceId != bytes32(0), "Invalid expense");
+            if (pType == ProposalType.PettyExpenditure) {
+                cap = pettyLimit;
+            } else {
+                require(amount > pettyLimit, "Use petty proposal");
+                cap = majorLimit;
+            }
+            require(amount <= cap, "Exceeds expense limit");
+        }
     }
 
     function _executeProposal(uint256 proposalId) internal {
@@ -290,13 +326,14 @@ contract Consortium is ConsortiumTreasury {
             emit MagisterChanged(newMagister);
         } else if (prop.pType == ProposalType.SpendingLimitsPackage) {
             (uint256 p, uint256 m) = abi.decode(prop.data, (uint256, uint256));
+            _validateLimits(p, m);
             pettyLimit = p;
             majorLimit = m;
             emit SpendingLimitsChanged(p, m);
-        } else if (prop.pType == ProposalType.MajorExpenditure) {
+        } else if (prop.pType == ProposalType.MajorExpenditure || prop.pType == ProposalType.PettyExpenditure) {
             (address recipient, uint256 amount, bytes32 referenceId) =
                 abi.decode(prop.data, (address, uint256, bytes32));
-            require(amount <= majorLimit, "Exceeds major limit");
+            require(amount <= proposalExpenseCap[proposalId], "Exceeds expense limit");
             _spendOperating(
                 recipient,
                 amount,

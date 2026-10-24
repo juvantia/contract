@@ -158,3 +158,36 @@ entry points take categoryId; existing spending/Tribunal authorization remains m
 Syndicate.startCollection(gross,purpose,categoryId,refundCategoryId) records the collection and
 refund choices for subsequent payments. Existing full-principal requirements are still enforced.
 No new organizational workflow or commercial refund policy is introduced.
+
+## Chiado governance correction — 2026-10-24
+
+The accepted governance/Tribunal changes are source changes for a fresh configured stack:
+
+- Asset ownership and total supply have completed-block history via
+  `getPastBalance(account,blockNumber)` and `getPastTotalSupply(blockNumber)`. Consortium uses
+  the previous completed block for both votes and voting supply, excluding its treasury at
+  that snapshot. Share transfers cannot reuse votes or shrink an open proposal's denominator.
+- Existing Consortium proposal enum values 0-4 are preserved; `PettyExpenditure` is appended
+  as 5. Both expense payloads are `(address recipient,uint256 gross,bytes32 referenceId)`.
+  Petty requires `gross <= pettyLimit` and at least 50.001% approval. Major requires
+  `pettyLimit < gross <= majorLimit` and at least 65%. All share ratios use integer arithmetic.
+  The old direct `spendOperating` selector reverts with `Expense requires proposal`.
+- The factory's signed Consortium voucher now includes `uint256 pettyLimit,uint256 majorLimit`
+  after `treasuryShares`. Both are exact token base units, require `0 < pettyLimit <= majorLimit`,
+  and initialize through `initialize(token,shares,distributor,magister,admin,tribunal,petty,major)`.
+  Whole-package updates require at least 65%; proposals freeze their expense tier/cap and tax
+  revision. Backend creation/voucher integration must use the new ABI before activation.
+- Syndicate demotion uses the current grade's kick protection with the target excluded.
+  Admission/promotion uses the new grade; zero-threshold Grade 1/2 admission is Primus-only.
+  Voting weight snapshots and membership/leadership versions reject stale and recycled actions.
+- Tribunal can exceptionally seize APU directly from a user wallet, including Kernel smart
+  accounts. Asset transfers cannot drain shares backing attributed escrow positions, even
+  after registration revocation. Existing fills/cancellations withdraw attribution first.
+- `judicialClaimTrade(asset,from,to,amount)` is Tribunal-only. It debits only that debtor's
+  EURO `tradeProceeds` and transfers the exact amount; it neither consumes pooled earnings
+  nor moves marketplace APU. Ordinary judicial pooled/account recovery remains separate.
+- Supported payment-token decimals are 0-72. Consortium initial limits are owner-selected;
+  Syndicate's existing 500/25,000 defaults scale actual token decimals instead of assuming 18.
+
+No deployment or organization-workflow activation is implied. See the current
+[readiness review](audit/CHIADO_READINESS.md) and [release record](DEPLOYMENTS.md).

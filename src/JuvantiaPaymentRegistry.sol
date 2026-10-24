@@ -73,7 +73,9 @@ contract JuvantiaPaymentRegistry is Ownable {
         Version memory version = versions[categoryId][revision];
         require(version.rule.active, "Inactive rule");
         require(issuedAt >= version.publishedAt && issuedAt <= block.timestamp, "Invalid quote time");
-        require(version.supersededAt == 0 || issuedAt < version.supersededAt, "Stale quote");
+        // Transactions within one block share a timestamp. A genuine invoice/order opened
+        // before publication of its successor must retain its authenticated revision.
+        require(version.supersededAt == 0 || issuedAt <= version.supersededAt, "Stale quote");
         require(expiresAt > issuedAt && expiresAt <= issuedAt + MAX_QUOTE_TTL, "Invalid quote expiry");
         require(block.timestamp <= expiresAt, "Quote expired");
         return version.rule;

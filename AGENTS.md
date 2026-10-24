@@ -30,7 +30,7 @@ To optimize gas efficiency when minting new RWA assets (Robulus, Domus, Cella, A
 ### 3. Clone and Proxy Initialization & Sub-Asset Hierarchy
 Clone/proxy instance state is initialized atomically through guarded `initialize()` functions. Implementation constructors disable initializers and may set checked immutable dependencies; they must not be mistaken for instance initialization. Plain non-proxy contracts use checked constructor configuration. Deployer remains the factory/upgrade authority on the configured blockchain.
 
-`JuvantiaAssetFabrica` supports hierarchical sub-asset linking (`parentAsset` and `subAssets`). Sub-assets such as `Cella` (individual apartment/unit inside a multi-unit `Domus`) are deployed via `createSubAsset(parentAssetId, assetId, name, symbol, initialOwner)`. The parent `Domus` retains 100,000 APU for building-level rights (commercial facade advertising, rooftop antennas, common spaces), while each `Cella` receives 100,000 APU for private residential leasing and ownership. Token identifiers enforce the canonical hierarchy: `DM-XXXX` for the Domus and `DM-XXXX-C{N}` for each constituent Cella.
+`JuvantiaAssetFabrica` supports hierarchical sub-asset linking (`parentAsset` and `subAssets`). Sub-assets such as `Cella` (individual apartment/unit inside a multi-unit `Domus`) are deployed via `createSubAsset(parentAssetId, assetId, name, symbol, initialOwner)`. The parent `Domus` retains 100,000 APU for building-level rights (commercial facade advertising, rooftop antennas, common spaces), while each `Cella` receives 100,000 APU for private residential leasing and ownership. Canonical identifiers are `DM-XXXX` for the Domus and `DM-XXXX-C{N}` for each constituent Cella. Trusted administration/Core validates this naming policy; the factory checks the existing parent and unique nonzero hashed ID, not a recoverable textual format.
 
 ---
 
@@ -141,7 +141,10 @@ This supersedes the earlier blanket EURO-only interpretation. Preserve direct AP
 and its revenue checkpoints, and protect attributed escrow custody against the insolvency
 demonstrated in [the Chiado review](audit/CHIADO_READINESS.md). User wallets include ZeroDev
 Kernel smart accounts: do not impose an EOA-only/code-length gate on direct APU recovery.
-The source remains unfixed; these are implementation requirements, not deployment evidence.
+Asset transfers now protect attributed escrow custody, while `judicialClaimTrade` recovers
+only the selected seller's EURO proceeds. Local regressions cover direct smart-account APU
+seizure, revocation/cancellation and shared-vault solvency. This is source verification,
+not receipt-verified deployment evidence.
 
 The monetary authority and accounting boundaries are:
 
@@ -151,24 +154,30 @@ The monetary authority and accounting boundaries are:
   - **Judicial Revenue Seizure (`judicialClaim` / `judicialSeize`):** The Tribunal can seize an account's accrued EURO revenue (full balance or a specified fine/award amount) and redirect it immediately to a victim or court deposit.
   - **Accounting Precision:** Revenue checkpoints remain active during encumbrance, preserving mathematical precision and fair yield accrual while locking fund withdrawals until judicial release.
 
-### 6. Governance decisions awaiting implementation — 2026-10-24
+### 6. Governance implementation — 2026-10-24
 
 - Consortium voting must use historical ownership and voting-supply snapshots. The owner
-  selected snapshots over locking shares; the current live-balance voting code remains unfixed.
+  selected snapshots over locking shares. `JuvantiaAsset` records historical physical balances
+  and supply; proposals use the same completed block for voting weight and treasury exclusion.
 - The owner specified expense approval thresholds of Petty 50.001% and Major 65% and
   confirmed that owners choose the monetary boundaries/settings themselves. Initial packages
   belong to incorporation consent; subsequent unified package changes require at least 65%
   as already specified in Notion. Do not ask the product owner to choose monetary values
   on behalf of individual Consortia. The initial package must be configurable rather than
-  silently using compiled defaults; the current unilateral petty gateway cannot bypass the
-  required expense votes. Source/vouchers still need implementation changes.
-- The owner acknowledged the Syndicate demotion bypass. The proposed correction is to use
+  silently using compiled defaults. Both initial limits are signed factory-voucher fields,
+  and the eight-argument Consortium initializer sets them without a default. The legacy
+  unilateral petty selector fails closed; PettyExpenditure=5 requires at least 50.001%,
+  Major/package changes at least 65%. Category/revision and expense tier/cap stay frozen for
+  each proposal. Update Core's voucher ABI/signing before enabling its deferred creation flow.
+- The owner accepted the Syndicate correction: use
   target-rank thresholds for admission/promotion and current-rank protection for demotion,
-  with the affected member excluded from demotion voting. Grade 6 would require 80% of the
-  eligible other votes as for expulsion. This mapping is a recommendation, not yet an accepted
-  new policy. All generic/direct methods must share authority checks; zero-threshold Grade 1/2
+  with the affected member excluded from demotion voting. Grade 6 requires 80% of the
+  eligible other votes as for expulsion. All generic/direct methods share authority checks;
+  zero-threshold Grade 1/2
   admission remains Primus-authorized. Execution must revalidate membership/rank/Primus status
-  and reject stale actions; changing members/weights must not reuse old votes against a new base.
+  and reject stale actions. Snapshot weights/eligible supply and membership/role versions
+  prevent reusing old votes against a new base. Existing monetary defaults scale actual token
+  decimals (supported range 0-72); no symbol is queried.
 
 ---
 
