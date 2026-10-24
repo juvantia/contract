@@ -24,6 +24,35 @@ No deployment transaction has been sent and no canonical address or receipt is a
 - A separate fork-based acceptance run was abandoned at the owner's request. It is not a
   release gate. Normal Forge preflight/simulation remains part of the broadcast command.
 
+### Deployment-wallet lookup and restoration
+
+The remembered sender prefix `0x3bb` matches the same masked address `0x3bb…efd1` in nine
+historical broadcast files. Shell history confirms an interactive import of the expected
+account label into Foundry's default directory, without a custom keystore path. This proves
+the prior import, not the present availability of its encrypted key file.
+
+The current `cast wallet list --json` reports an empty account list. Bounded filename and
+keystore-metadata searches found no matching file in accessible Linux paths or standard
+Windows Foundry/backup locations. Local root-home inspection requires an interactive sudo
+password, so that separate profile has not been ruled out. The user can check it locally:
+
+```sh
+sudo -H /home/delaforge/.foundry/bin/cast wallet list
+```
+
+If the account is unavailable there, import the existing wallet key using the hidden prompt:
+
+```sh
+cd /home/delaforge/juvantia/contract
+cast wallet import juvantia_admin --interactive
+cast wallet address --account juvantia_admin
+```
+
+Enter private keys and passwords only in those local prompts, never in chat or command-line
+arguments. Verify the derived address against the remembered wallet before release. Foundry
+stores the imported encrypted account in `~/.foundry/keystores/juvantia_admin`. Historical
+sender records do not substitute for an available signing key or its successful unlocking.
+
 ## Verification
 
 - `forge fmt --check`, `forge build --sizes`, `forge test`: **172 tests passed**.
