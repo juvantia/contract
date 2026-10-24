@@ -64,7 +64,7 @@ abstract contract JuvantiaDeploymentPreflight is Script {
         require(
             config.coreSigner != address(0) && config.coreSigner == input.communityAuthorizer, "Core signer mismatch"
         );
-        require(config.tribunal != address(0), "Invalid tribunal");
+        // Zero explicitly defers judicial authority; owner-only setters can enable it later.
         require(
             config.deployer != config.coreSigner && config.deployer != config.tribunal
                 && config.coreSigner != config.tribunal,

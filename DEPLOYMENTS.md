@@ -5,8 +5,10 @@
 The owner selected Chiado (chain ID 10200). No new stack has been broadcast or receipt-verified.
 Direct testnet deployment is now authorized. The owner-supplied payment token was checked
 through read-only RPC: code is present and decimals are 18. The ignored local `.env` contains
-these verified network/token fields. Broadcasting still requires an available deployment
-wallet and the missing Core/Tribunal identities; no keystore was found locally or on the VPS.
+these verified network/token fields and public role settings. The restored encrypted
+`juvantia_admin` keystore unlocks to the expected deployer. A fresh Core service key is stored
+only in ignored local `core/.env`, identically in both signing settings. The owner explicitly
+deferred Tribunal: `TRIBUNAL_ADDRESS` is zero and judicial operations are disabled.
 An independent fork acceptance run is not required by the owner. No project deployment
 address, receipt or deployment block is asserted by these checks.
 The source corrections in [the readiness review](audit/CHIADO_READINESS.md) close the agreed
@@ -16,7 +18,10 @@ token; an approved Chiado token/configuration and real-network simulation are st
 
 The full deployment now requires explicit `DEPLOYER_ADDRESS`, token decimals and all Core/
 Tribunal settings in [.env.example](.env.example). The expected deployer is the initial owner;
-it, the single Core signer and Tribunal must be distinct nonzero authorities. Token decimals
+owner and Core must be distinct nonzero authorities. Tribunal may explicitly be zero; a
+future nonzero Tribunal must differ from both. Owner-only setters can activate it later.
+Existing asset/community clones require their own Tribunal setting; factory changes affect
+future clones. Token decimals
 are read from the actual token, without its symbol, and checked against configuration.
 Supported token decimals are 0-72. `deploy.sh` simulates by default; actual broadcasting uses
 an explicit `--broadcast` after authorization. Simulation uses only the public sender;
@@ -65,7 +70,7 @@ Deployment configuration is supplied at release time through:
 - `EURO_TOKEN_DECIMALS` in the services, checked against the actual token
 - `PAYMENT_INVOICE_ISSUER_ADDRESS`: public address derived from the single Core service key
 - `COMMUNITY_AUTHORIZER_ADDRESS`: the same Core public address, used by both community factories
-- `TRIBUNAL_ADDRESS`: actual Tribunal authority selected for the stack
+- `TRIBUNAL_ADDRESS`: explicit zero while deferred, otherwise the selected distinct authority
 
 Core receives one server-only private key: the same 0x-prefixed secret is supplied to both
 PAYMENT_INVOICE_SIGNING_KEY and COMMUNITY_AUTHORIZER_PRIVATE_KEY. These are existing consumer
@@ -86,8 +91,8 @@ Deploy script: script/DeployJuvantia.s.sol. Prepare and verify the complete set:
 - JuvantiaTradeHub implementation/proxy.
 - Consortium implementation and ConsortiumFactory implementation/proxy.
 - Syndicate implementation and SyndicateFactory implementation/proxy.
-- Real Tribunal wiring. The script requires the external Tribunal address; it does not
-  establish a deployed Tribunal constitution/jury system.
+- Tribunal is explicitly disabled for this release. The script does not deploy a Tribunal
+  constitution/jury system. Its authority can be assigned later through owner/admin setters.
 
 Verify Fabrica and Consortium factory asset registrars; Syndicate factory payment registrar;
 TradeHub escrow/source; ServicePayments/Aerarium sources; Consortium/Syndicate instance roles.

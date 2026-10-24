@@ -152,9 +152,40 @@ contract DeploymentReadinessTest is Test {
         _expectNoDeployment("Core signer mismatch");
     }
 
-    function testZeroTribunalFailsBeforeAnyDeployment() public {
+    function testDeferredTribunalDisablesJudicialActionsAndCanBeEnabledLater() public {
         input.tribunal = address(0);
-        _expectNoDeployment("Invalid tribunal");
+        ConfiguredDeploymentScript configuredScript = new ConfiguredDeploymentScript(input);
+        DeployJuvantia.Deployment memory d = configuredScript.run();
+        JuvantiaRevenueDistributor revenue = JuvantiaRevenueDistributor(d.revenue);
+        JuvantiaAssetFabrica fabrica = JuvantiaAssetFabrica(d.fabrica);
+        ConsortiumFactory cFactory = ConsortiumFactory(d.consortiumFactory);
+        SyndicateFactory sFactory = SyndicateFactory(d.syndicateFactory);
+        assertEq(revenue.tribunal(), address(0));
+        assertEq(fabrica.tribunal(), address(0));
+        assertEq(cFactory.tribunal(), address(0));
+        assertEq(sFactory.tribunal(), address(0));
+        vm.prank(OWNER);
+        vm.expectRevert("Only tribunal");
+        revenue.setEncumbrance(CORE_SIGNER, true);
+        vm.prank(CORE_SIGNER);
+        vm.expectRevert("Only tribunal");
+        revenue.setEncumbrance(OWNER, true);
+        vm.prank(CORE_SIGNER);
+        vm.expectRevert();
+        revenue.setTribunal(TRIBUNAL);
+        vm.startPrank(OWNER);
+        revenue.setTribunal(TRIBUNAL);
+        fabrica.setTribunal(TRIBUNAL);
+        cFactory.setTribunal(TRIBUNAL);
+        sFactory.setTribunal(TRIBUNAL);
+        vm.stopPrank();
+        assertEq(revenue.tribunal(), TRIBUNAL);
+        assertEq(fabrica.tribunal(), TRIBUNAL);
+        assertEq(cFactory.tribunal(), TRIBUNAL);
+        assertEq(sFactory.tribunal(), TRIBUNAL);
+        vm.prank(TRIBUNAL);
+        revenue.setEncumbrance(CORE_SIGNER, true);
+        assertTrue(revenue.encumbered(CORE_SIGNER));
     }
 
     function testOwnerCannotAlsoBeTheCoreSigner() public {

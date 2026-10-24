@@ -133,6 +133,10 @@ See [Core signing roles](../core/docs/SIGNING.md).
 
 ### 5. Multi-Model Tribunal & Judicial Encumbrance Architecture
 
+The owner deferred Tribunal for the initial Chiado release. Configure its address explicitly
+as zero; judicial functions remain disabled. Owner/admin setters may assign a distinct
+authority later. Existing clones need individual updates; factory settings affect new clones.
+
 **Latest owner clarification — 2026-10-24:** Tribunal may exceptionally seize APU directly
 from a user's wallet. It need not wait for a listing or sale. For TradeHub-related monetary
 recovery (for example an unpaid fine), debit only the debtor's own recorded EURO proceeds;

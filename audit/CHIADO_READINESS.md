@@ -5,8 +5,8 @@ Original findings and ten unsafe-behavior reproductions remain in
 [audit history](https://github.com/juvantia/contract/tree/89b2c91/audit).
 
 **Source corrections are implemented and locally verified. The owner authorized a direct
-Chiado testnet deployment; broadcasting is waiting for an available deployment signer and
-the remaining role configuration.**
+Chiado testnet deployment. The deployer is restored, Core signing is configured locally,
+and the owner explicitly deferred Tribunal.**
 No deployment transaction has been sent and no canonical address or receipt is asserted.
 
 ## Network and signing configuration check — 2026-10-24
@@ -14,44 +14,25 @@ No deployment transaction has been sent and no canonical address or receipt is a
 - The owner supplied the payment-token address. Read-only RPC checks confirm chain ID 10200,
   deployed token code, 18 decimals and a callable totalSupply. No symbol was queried.
 - The ignored local `contract/.env` now contains the verified chain/RPC/token/decimals fields.
-  Authority fields are still unset; the file is private configuration and must not be committed.
+  It also contains the expected deployer, single Core public identity and explicit zero Tribunal.
+  This private configuration must not be committed.
 - `app/.env` contains matching public network/token settings. The old saved contract terminal
   only identifies an RPC and account label; it is not a complete release configuration and
   that old RPC was unavailable during the check.
-- The expected `juvantia_admin` Foundry keystore was absent locally and on the VPS. Core's VPS
-  configuration also lacks the service signing settings and Tribunal address. A deployer
-  keystore/wallet and the Core/Tribunal identities must be supplied or explicitly prepared.
+- The owner restored `juvantia_admin`; successful unlocking verifies the expected address.
+  Its encrypted file and temporary unlock file use mode 600. A fresh service key is stored
+  identically in both signing settings in ignored local `core/.env` (mode 600). This does not
+  activate or reconfigure the running VPS Core service.
 - A separate fork-based acceptance run was abandoned at the owner's request. It is not a
   release gate. Normal Forge preflight/simulation remains part of the broadcast command.
 
-### Deployment-wallet lookup and restoration
+### Deferred Tribunal
 
-The remembered sender prefix `0x3bb` matches the same masked address `0x3bb…efd1` in nine
-historical broadcast files. Shell history confirms an interactive import of the expected
-account label into Foundry's default directory, without a custom keystore path. This proves
-the prior import, not the present availability of its encrypted key file.
-
-The current `cast wallet list --json` reports an empty account list. Bounded filename and
-keystore-metadata searches found no matching file in accessible Linux paths or standard
-Windows Foundry/backup locations. Local root-home inspection requires an interactive sudo
-password, so that separate profile has not been ruled out. The user can check it locally:
-
-```sh
-sudo -H /home/delaforge/.foundry/bin/cast wallet list
-```
-
-If the account is unavailable there, import the existing wallet key using the hidden prompt:
-
-```sh
-cd /home/delaforge/juvantia/contract
-cast wallet import juvantia_admin --interactive
-cast wallet address --account juvantia_admin
-```
-
-Enter private keys and passwords only in those local prompts, never in chat or command-line
-arguments. Verify the derived address against the remembered wallet before release. Foundry
-stores the imported encrypted account in `~/.foundry/keystores/juvantia_admin`. Historical
-sender records do not substitute for an available signing key or its successful unlocking.
+The owner explicitly requested deployment without Tribunal for now. `TRIBUNAL_ADDRESS` must
+be supplied as zero. All judicial gates then reject callers, including owner and Core.
+Owner/admin setters can assign a separate authority later. Update Distributor and factories,
+and each already-created asset/community instance; factory changes only affect future clones.
+Preflight continues to reject any nonzero Tribunal equal to owner or Core.
 
 ## Verification
 
@@ -88,7 +69,7 @@ Syndicate is close to the size limit. Preserve the build size gate for any subse
 | H4: stale kicks corrupted member enumeration or removed the current Primus | Snapshot vote weights/eligible base, membership incarnations and target/leadership versions prevent stale execution and leave/rejoin voting. Execution revalidates membership and role. | [SyndicateGovernance.t.sol](../test/SyndicateGovernance.t.sol) |
 | H5: incorrect spending thresholds and compiled initial amounts | Petty expenses require at least 50.001%; Major expenses and unified package changes require at least 65%. Initial monetary limits are signed in the creation voucher. The unilateral Consortium spend selector fails closed. | [ConsortiumGovernance.t.sol](../test/ConsortiumGovernance.t.sol) |
 | M1: same-block rule publication invalidated an authentic older quote | Authenticated quotes accept `issuedAt == supersededAt`; later timestamps, expiry and issuer checks remain enforced. | [RegistryQuoteBoundary.t.sol](../test/RegistryQuoteBoundary.t.sol) |
-| M2: contradictory signers or zero Tribunal were accepted | Shared preflight validates the explicit release configuration. Both Core roles use one identity; owner/Core/Tribunal are distinct and nonzero. Full and standalone community scripts validate before broadcast recording. | [DeploymentReadiness.t.sol](../test/DeploymentReadiness.t.sol) |
+| M2: contradictory signer/authority settings were accepted | Shared preflight validates the explicit release configuration. Both Core roles use one identity; owner/Core are distinct and nonzero. The owner-selected zero Tribunal disables judicial functions; a nonzero Tribunal must remain distinct. Full and standalone community scripts validate before broadcast recording. | [DeploymentReadiness.t.sol](../test/DeploymentReadiness.t.sol) |
 
 The original unsafe-behavior tests are retired; normal tests now assert the safe outcome.
 See [their historical record](chiado-2026-10-24/README.md).
