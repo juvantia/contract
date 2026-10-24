@@ -48,6 +48,47 @@ package. Core's deferred organization-creation path needs that matching voucher 
 enablement. The new factory/asset/community source is for fresh instances, not an automatic
 upgrade or migration of historical clones. All canonical address/block/receipt entries below are backed by successful RPC receipts.
 
+## Explorer source verification — 2026-10-25 (Asia/Bangkok)
+
+All 15 deployed addresses now have verified source code and Solidity contract names in
+[Chiado Blockscout](https://gnosis-chiado.blockscout.com/). Confirmation timestamp:
+`2026-10-24T17:05:37.052532+00:00` (UTC; 2026-10-25 in Asia/Bangkok). Per-address names, explorer links,
+proxy types and implementation links are recorded in
+[explorer-verification.json](deployments/chiado-10200/explorer-verification.json).
+
+The initial deployment checked successful receipts, runtime bytecode and contract bindings,
+but did not publish source code to the explorer. This separate source-publication step is now
+complete for the existing addresses. Source verification used Blockscout's Sourcify path;
+its native verifier returned `verifier service connection` during the attempted publication.
+Before submission, the original compiler metadata/remappings were preserved and all 15
+creation bytecodes were reproduced exactly with the installed Solidity 0.8.30 compiler.
+
+Names displayed by the explorer are Solidity contract types. Each of the four entry points
+below is verified as `ERC1967Proxy`; its implementation is separately verified and named.
+Blockscout confirms every implementation link matches the canonical ERC-1967 binding.
+
+| Entry point | Verified proxy | Named implementation |
+| --- | --- | --- |
+| Asset Fabrica | [`ERC1967Proxy`](https://gnosis-chiado.blockscout.com/address/0x6eeeb06caf77900b8122cf4521e7e68d0ac00057?tab=contract) | [`JuvantiaAssetFabrica`](https://gnosis-chiado.blockscout.com/address/0x5d73a2668265d60d01bfe8454d091ed0b8f8c12a?tab=contract) |
+| TradeHub | [`ERC1967Proxy`](https://gnosis-chiado.blockscout.com/address/0x8271615888d1d3e6868487a5ac276cb3179bed97?tab=contract) | [`JuvantiaTradeHub`](https://gnosis-chiado.blockscout.com/address/0x367c75ed357457b2881f85cb0ee2bccfe3fcb929?tab=contract) |
+| Consortium factory | [`ERC1967Proxy`](https://gnosis-chiado.blockscout.com/address/0xa497f79ef7a5bcb87dc5799a12c8f01a92489b23?tab=contract) | [`ConsortiumFactory`](https://gnosis-chiado.blockscout.com/address/0x7e68fdda1cfb6b610986c22ca26c11b414b16f6c?tab=contract) |
+| Syndicate factory | [`ERC1967Proxy`](https://gnosis-chiado.blockscout.com/address/0xe1df824c17babcc05cdd8a423cd8c589edb087f1?tab=contract) | [`SyndicateFactory`](https://gnosis-chiado.blockscout.com/address/0xc89c3969fc73d0f5d090a97f790226e6707f69fa?tab=contract) |
+
+Repeat source verification after building the matching source revision:
+
+```sh
+python3 script/verify_explorer.py \
+  deployments/chiado-10200/deployment.json \
+  broadcast/DeployJuvantia.s.sol/10200/run-latest.json \
+  https://gnosis-chiado.blockscout.com --method sourcify
+```
+
+The helper checks original creation bytecode and constructor payloads before publishing,
+skips already verified contracts, and records success only after the explorer confirms every
+source/name and all four proxy bindings. It uses no wallet, private key or on-chain transaction.
+Use `--solc /path/to/solc-0.8.30` if the compiler is outside Foundry's standard cache paths.
+Raw broadcast logs remain local; canonical public deployment/source evidence is exported above.
+
 ## Core connection — verified 2026-10-24
 
 The existing VPS service `core-service` is connected to the canonical Chiado stack.
@@ -172,7 +213,8 @@ Completed for this release:
 
 1. Receipt verification of all deployment/configuration transactions, token/decimals,
    proxy implementations and cross-contract bindings.
-2. Export of canonical addresses, blocks, receipts and all 11 integration ABIs.
+2. Export of canonical addresses, blocks, receipts and all 11 integration ABIs; public explorer
+   source/name verification for all 15 addresses and named implementation links for all four proxies.
 3. Core configuration/key provisioning, ABI checks, automated deployment and runtime
    contract-read/authentication checks described above. The same service identity is authorized
    in Registry and both factories; owner and Tribunal authority remain separate.

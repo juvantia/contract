@@ -189,8 +189,12 @@ The monetary authority and accounting boundaries are:
 
 The full configured Chiado contract stack is receipt-verified: 29 successful transactions,
 15 matching deployed runtimes, 46 binding checks and exported ABI/address/block records.
-See `DEPLOYMENTS.md` and `deployments/chiado-10200/deployment.json`. Tribunal is explicitly
-disabled. Server/client activation, tax-category publication and paid lifecycle acceptance
+See `DEPLOYMENTS.md` and `deployments/chiado-10200/deployment.json`. All 15 addresses also have
+public source/name verification through Blockscout's Sourcify path; see
+`deployments/chiado-10200/explorer-verification.json`. Release completion must record explorer
+source verification separately from receipt/runtime checks, including named implementation
+links for proxies. Use `script/verify_explorer.py` with the matching build and raw broadcast.
+Tribunal is explicitly disabled. Server/client activation, tax-category publication and paid lifecycle acceptance
 remain separate work. Never infer activation from compilation or historical addresses.
 
 Settlement source/tests are implemented; this does not establish complete Core readiness.
