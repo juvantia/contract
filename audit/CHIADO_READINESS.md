@@ -18,18 +18,22 @@ The payment token, actual decimals and temporary Tribunal identity still need re
 These session decisions take precedence over older Notion and local descriptions. They are
 requirements for the fixes, not claims that runtime code has changed:
 
-- **EURO-only Tribunal:** court requirements and recovery are in the configured EURO token
-  only. There is no judicial APU seizure. The corrective action for H1 is to remove forbidden
-  share/other-token recovery powers, retaining bounded EURO recovery. An escrow-aware APU
-  seizure route is not wanted. Both organization wrappers and asset-token methods must be covered.
+- **Direct APU recovery and marketplace EURO recovery:** the latest clarification permits
+  exceptional Tribunal seizure of APU directly from a user's wallet, without waiting for a
+  listing or sale. For a TradeHub-related fine, debit only the particular debtor's recorded
+  EURO proceeds. A raw judicial transfer must not take APU out of attributed marketplace
+  custody. This supersedes the earlier blanket EURO-only interpretation; direct APU recovery
+  is retained. Protect smart-account users as well as EOAs; an EOA-only check is inappropriate.
 - **Consortium snapshots:** historical ownership and voting-supply snapshots are selected
   over locking voting shares. H2 remains open until the selected model is implemented and tested.
-- **Spending thresholds:** Petty 50.001%, Major 65%. The monetary tier boundary, any separate
-  unilateral allowance and approval for changing the package remain to be clarified. The
-  existing direct Magister petty-spending permission does not implement this voting model.
-- **Syndicate examples requested:** the owner considers a genuine decision with sufficient
-  votes legitimate. H3 concerns execution without those votes. See the concrete cases below;
-  no new demotion-policy choice is inferred from this discussion.
+- **Spending thresholds and owner configuration:** Petty 50.001%, Major 65%. Owners choose
+  their own monetary boundary and initial settings at incorporation. Later unified package
+  changes use the existing Notion requirement of at least 65%. No product-owner choice of
+  concrete monetary amounts is needed. The current direct Magister petty gateway and fixed
+  defaults do not implement this model.
+- **Syndicate bypass acknowledged:** the owner agreed H3 is incorrect and requested solutions.
+  A current-rank demotion protection is recommended below; no specific new demotion threshold
+  is represented as accepted or implemented yet.
 
 ## Scope and evidence
 
@@ -78,12 +82,15 @@ Alice's order reverts. This requires an authorized Tribunal operation, not an ar
 Conversely, a judicial transfer directly from the listed seller fails because the physical
 shares are held by TradeHub. Ordinary seller-targeted seizure cannot reach listed ownership.
 
-Required under the owner's EURO-only clarification: remove Tribunal authority to move APU
-from asset wallets, marketplace custody and organization treasuries, including generic token
-wrappers. Preserve judicial recovery of EURO from the debtor's recorded monetary balances.
-An escrow-aware APU seizure route was considered in the initial review and is superseded by
-this clarification. Test that forbidden share seizure is unavailable and that EURO recovery
-preserves solvency across account credits, asset pools and trade proceeds.
+Required under the latest clarification: preserve exceptional direct APU seizure from user
+wallets, including Kernel smart accounts, with transfer-aware revenue checkpoints. Prevent
+raw APU transfers from reducing physical escrow custody below attributed positions, including
+after escrow registration is revoked. Marketplace fines recover EURO from the actual debtor's
+recorded proceeds in Distributor. They do not require removing marketplace shares or debit
+another seller's balance. The earlier blanket removal of APU recovery powers is superseded.
+Test direct recovery, escrow rejection, subsequent fills/cancellations and vault solvency
+across account credits, asset pools and trade proceeds. Generic judicial wrappers must not
+bypass the protected custody boundary.
 
 Proofs: `testAuditJudicialTransferFromEscrowDuplicatesRevenueAndStealsOtherCredits` and
 `testAuditDirectSellerSeizureCannotReachListedShares`.
@@ -141,6 +148,22 @@ Concrete cases, using DominantLeadership weights:
 An actual collective vote meeting the protected member's threshold would be legitimate.
 These cases instead bypass that threshold through the new-rank admission rule.
 
+Recommended solution, pending acceptance of the demotion policy:
+
+- Separate admission/promotion authorization from demotion authorization. Admission/promotion
+  uses the new rank's threshold; demotion uses protection for the current rank. Reusing the
+  current rank's kick threshold would require 80% of eligible others for Grade 6. Exclude
+  the affected member from both the eligible base and supporting votes on demotion.
+- Grade-1/2 admission's zero threshold means Primus authorization, not any-member authority.
+  Apply that actor check to the generic action path and convenience methods alike.
+- Make direct grade-change methods enforce the same vote/authority rules. Revalidate the
+  target's membership, original protected rank and current Primus status at execution.
+- Bind actions to the relevant membership/role instance so leaving/rejoining or becoming
+  Primus cannot revive a stale action. Keep stored vote weights and the eligible base
+  consistent; a weight snapshot with target-state validation avoids using votes from an old
+  membership against a new denominator. Consortium's accepted snapshot choice does not by
+  itself establish a separately accepted Syndicate snapshot policy.
+
 ### H4 — Stale Syndicate kick actions corrupt membership or remove the current Primus
 
 Affected: [Syndicate.sol](../src/community/Syndicate.sol), `supportAction`, `_executeAction`,
@@ -177,14 +200,16 @@ Code implements two absolute limits, Petty/Major; creation vouchers cannot suppl
 limits. Notion contains both Petty/Major and Petty/Standard/Major descriptions and records
 spending-package choices as unresolved. MajorExpenditure also uses the lower election threshold.
 
-Required decision: confirm the package, initial configuration and approval thresholds before
-changing the ABI/governance. The owner was asked to select the intended package.
+The owner clarified expense approval tiers of Petty 50.001% and Major 65%, and confirmed
+that owners themselves choose the monetary parameters. Notion already requires the initial
+package to be agreed during incorporation and later changes to be a unified package approved
+by at least 65%. No further product-owner choice of euro amounts is needed.
 
-Subsequent owner clarification: Petty 50.001%, Major 65%. These refer to the requested
-spending approval tiers, whereas the earlier 65% discussion concerned changing the package.
-Do not conflate those decisions. The monetary boundary, any unilateral allowance and the
-package-change threshold still need clarification; the current source implements neither
-a Petty expense vote nor a 65% Major expense vote.
+Required: carry the agreed initial monetary package through creation, support governed
+configuration, and enforce the separate expense voting thresholds. The current source
+implements neither a Petty expense vote nor a 65% Major expense vote. It fixes initial
+amounts in code and omits the spending package from factory vouchers. No current runtime
+or organization backend workflow completion is implied by the policy clarification.
 
 Proof: `testAuditSixtyPercentCanChangeLimitsDespiteSixtyFivePercentRequirement`.
 
@@ -256,11 +281,13 @@ Proof: `testAuditScriptAcceptsDifferentCoreSignersAndDisabledTribunal`.
 
 ## Conditions to reverse the decision
 
-1. Resolve H1-H4 under the owner's clarifications: EURO-only judicial recovery, historical
+1. Resolve H1-H4 under the owner's clarifications: exceptional direct APU recovery with
+   protected marketplace custody, debtor-specific EURO recovery, historical Consortium
    voting snapshots, and regression/invariant coverage for custody conservation, shared-vault
    solvency, one effective vote per share, protected ranks and membership enumeration.
-2. Confirm H5 governance policy, decimals and the required community feature scope. Correct
-   M1 and add the M2 deployment preflight checks.
+2. Implement owner-configured monetary packages and the clarified Petty/Major vote thresholds;
+   settle the proposed Syndicate demotion policy, actual token/decimals and community feature
+   scope. Correct M1 and add the M2 deployment preflight checks.
 3. Run formatting, build/sizes and the complete normal suite after corrections. Re-run each
    scenario as an expected-safe regression, then simulate the full selected stack against
    Chiado with the actual token/configuration and no broadcast.

@@ -133,17 +133,19 @@ See [Core signing roles](../core/docs/SIGNING.md).
 
 ### 5. Multi-Model Tribunal & Judicial Encumbrance Architecture
 
-**Owner clarification — 2026-10-24:** Tribunal may recover only the configured EURO payment
-token. Court requirements are denominated in EURO; Tribunal has no authority to seize or
-reassign APU shares or arbitrary other tokens. Existing asset `judicialTransfer`/`judicialSeize`,
-Consortium `judicialSeizeShares` and generic organization `judicialSeizeToken` paths still
-expose forbidden capabilities in the current source. Remove or restrict those paths before
-deployment; do not implement an escrow-aware APU seizure route as a substitute. The findings
-and reproductions in [the Chiado review](audit/CHIADO_READINESS.md) are not fixes.
+**Latest owner clarification — 2026-10-24:** Tribunal may exceptionally seize APU directly
+from a user's wallet. It need not wait for a listing or sale. For TradeHub-related monetary
+recovery (for example an unpaid fine), debit only the debtor's own recorded EURO proceeds;
+never take APU out of pooled marketplace custody through an unreconciled judicial transfer.
+This supersedes the earlier blanket EURO-only interpretation. Preserve direct APU seizure
+and its revenue checkpoints, and protect attributed escrow custody against the insolvency
+demonstrated in [the Chiado review](audit/CHIADO_READINESS.md). User wallets include ZeroDev
+Kernel smart accounts: do not impose an EOA-only/code-length gate on direct APU recovery.
+The source remains unfixed; these are implementation requirements, not deployment evidence.
 
 The monetary authority and accounting boundaries are:
 
-- **Organization EURO recovery (`Consortium.sol` / `Syndicate.sol`):** judicial recovery may debit only the organization's available EURO under its explicitly authorized principal rules; it grants no APU transfer power.
+- **Organization EURO recovery (`Consortium.sol` / `Syndicate.sol`):** monetary recovery debits only the organization's recorded available EURO under its explicitly authorized principal rules. Generic judicial wrappers must preserve the same debtor attribution and protected-custody boundaries.
 - **Revenue Distributor Encumbrance & Seizure (`JuvantiaRevenueDistributor.sol`):**
   - **Account Encumbrance (`setEncumbrance`):** The Tribunal can place an encumbrance/freeze on any account address (`encumbered[account] = true`). Encumbered accounts are strictly barred from claiming accrued revenue (`claim`, `claimFor`).
   - **Judicial Revenue Seizure (`judicialClaim` / `judicialSeize`):** The Tribunal can seize an account's accrued EURO revenue (full balance or a specified fine/award amount) and redirect it immediately to a victim or court deposit.
@@ -153,15 +155,20 @@ The monetary authority and accounting boundaries are:
 
 - Consortium voting must use historical ownership and voting-supply snapshots. The owner
   selected snapshots over locking shares; the current live-balance voting code remains unfixed.
-- The owner specified spending approval thresholds of Petty 50.001% and Major 65%. These
-  are distinct from the current unilateral petty-spending gateway and the previous question
-  about approval for changing the spending-limit package. The monetary boundary between
-  tiers, any separate unilateral allowance and package-change authorization still need clarification.
-  Do not invent them or mark the new policy implemented.
-- Syndicate demotion/expulsion policy remains under discussion. Existing audit reproductions
-  show a Grade-1 member can demote a Grade-6 member without votes from anyone else and a
-  Primus can demote then expel an equal cofounder without the third cofounder's agreement.
-  Legitimate threshold-approved collective decisions are not the reported bypass.
+- The owner specified expense approval thresholds of Petty 50.001% and Major 65% and
+  confirmed that owners choose the monetary boundaries/settings themselves. Initial packages
+  belong to incorporation consent; subsequent unified package changes require at least 65%
+  as already specified in Notion. Do not ask the product owner to choose monetary values
+  on behalf of individual Consortia. The initial package must be configurable rather than
+  silently using compiled defaults; the current unilateral petty gateway cannot bypass the
+  required expense votes. Source/vouchers still need implementation changes.
+- The owner acknowledged the Syndicate demotion bypass. The proposed correction is to use
+  target-rank thresholds for admission/promotion and current-rank protection for demotion,
+  with the affected member excluded from demotion voting. Grade 6 would require 80% of the
+  eligible other votes as for expulsion. This mapping is a recommendation, not yet an accepted
+  new policy. All generic/direct methods must share authority checks; zero-threshold Grade 1/2
+  admission remains Primus-authorized. Execution must revalidate membership/rank/Primus status
+  and reject stale actions; changing members/weights must not reuse old votes against a new base.
 
 ---
 
