@@ -3,6 +3,12 @@
 ## Chiado release preparation — 2026-10-24
 
 The owner selected Chiado (chain ID 10200). No new stack has been broadcast or receipt-verified.
+Direct testnet deployment is now authorized. The owner-supplied payment token was checked
+through read-only RPC: code is present and decimals are 18. The ignored local `.env` contains
+these verified network/token fields. Broadcasting still requires an available deployment
+wallet and the missing Core/Tribunal identities; no keystore was found locally or on the VPS.
+An independent fork acceptance run is not required by the owner. No project deployment
+address, receipt or deployment block is asserted by these checks.
 The source corrections in [the readiness review](audit/CHIADO_READINESS.md) close the agreed
 escrow/Tribunal, voting, protected-rank, spending and quote-boundary findings. Verification:
 172 normal tests, formatting and build/sizes pass. Full-stack simulation uses a local test

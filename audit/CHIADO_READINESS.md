@@ -4,9 +4,25 @@ Reviewed and corrected: 2026-10-24. Original audited source: `fd4528b`.
 Original findings and ten unsafe-behavior reproductions remain in
 [audit history](https://github.com/juvantia/contract/tree/89b2c91/audit).
 
-**Source corrections are implemented and locally verified. A Chiado broadcast is not ready
-until the actual release configuration and network simulation are verified.**
+**Source corrections are implemented and locally verified. The owner authorized a direct
+Chiado testnet deployment; broadcasting is waiting for an available deployment signer and
+the remaining role configuration.**
 No deployment transaction has been sent and no canonical address or receipt is asserted.
+
+## Network and signing configuration check — 2026-10-24
+
+- The owner supplied the payment-token address. Read-only RPC checks confirm chain ID 10200,
+  deployed token code, 18 decimals and a callable totalSupply. No symbol was queried.
+- The ignored local `contract/.env` now contains the verified chain/RPC/token/decimals fields.
+  Authority fields are still unset; the file is private configuration and must not be committed.
+- `app/.env` contains matching public network/token settings. The old saved contract terminal
+  only identifies an RPC and account label; it is not a complete release configuration and
+  that old RPC was unavailable during the check.
+- The expected `juvantia_admin` Foundry keystore was absent locally and on the VPS. Core's VPS
+  configuration also lacks the service signing settings and Tribunal address. A deployer
+  keystore/wallet and the Core/Tribunal identities must be supplied or explicitly prepared.
+- A separate fork-based acceptance run was abandoned at the owner's request. It is not a
+  release gate. Normal Forge preflight/simulation remains part of the broadcast command.
 
 ## Verification
 
@@ -83,16 +99,17 @@ not upgraded by changing their factories.
 
 ## Remaining release gates
 
-1. Supply the approved release configuration. The current contract environment has none:
-   `BLOCKCHAIN_CHAIN_ID=10200`, `BLOCKCHAIN_RPC_URL`, `EURO_TOKEN_ADDRESS`,
-   `EURO_TOKEN_DECIMALS`, `DEPLOYER_ADDRESS`, the same public Core address in both issuer
-   and authorizer settings, and a separate `TRIBUNAL_ADDRESS`. Private keys stay in the
-   encrypted Foundry keystore/Core secrets. See [.env.example](../.env.example).
-2. Verify the actual Chiado RPC/token/code/decimals and expected deployment signer. Run
+1. Complete the approved release configuration. Chain/RPC/token/18 decimals are prepared
+   locally. Still required: the actual `DEPLOYER_ADDRESS` with an available signing wallet,
+   the same public Core address in both issuer/authorizer settings, and a separate
+   `TRIBUNAL_ADDRESS`. Private keys stay in the encrypted Foundry keystore/Core secrets.
+   See [.env.example](../.env.example).
+2. The actual RPC/token/code/decimals have been checked. Verify the expected deployment signer. Run
    `./deploy.sh` with the approved environment: it simulates by default using the public
    sender and does not need to unlock the signing account. The mock-token
    full-stack test is not a substitute for this actual-network rehearsal.
-3. After explicit authorization, broadcast using `./deploy.sh --broadcast`. The wrapper
+3. Deployment is authorized by the owner; once signing/configuration is available, broadcast
+   using `./deploy.sh --broadcast`. The wrapper
    rejects `--skip-simulation` and `--resume`; recovery of a partial broadcast requires
    checking its actual receipts separately. Verify every successful receipt, implementation and binding.
 4. Export matching ABIs plus receipt-verified addresses and deployment blocks for Core/Admin,
