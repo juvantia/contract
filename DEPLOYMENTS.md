@@ -2,7 +2,7 @@
 
 ## Verified Chiado deployment — 2026-10-24
 
-The full stack is deployed on Gnosis Chiado (chain ID 10200), from source revision
+The full contract stack is deployed on Gnosis Chiado (chain ID 10200), from source revision
 `a061464`. All 29 deployment/configuration transactions have successful RPC-verified receipts,
 in blocks 23669318–23669346. All 15 deployed runtimes match the compiled artifacts (immutable
 slots excluded from byte comparison and dependencies checked through getters). The verification
@@ -18,11 +18,12 @@ Reproduce verification with:
 python3 script/verify_deployment.py broadcast/DeployJuvantia.s.sol/10200/run-latest.json deployments/chiado-10200
 ```
 
-The restored encrypted `juvantia_admin` is the initial owner. The owner-requested fresh Core
-service key is stored only in ignored local `core/.env` (mode 600), identically in both signing
-settings. It is authorized in Registry and both factories. No secret was exported or committed.
-The temporary deployer password file was removed after broadcasting. The running VPS Core
-service has not been reconfigured or activated by this deployment.
+The restored encrypted `juvantia_admin` is the initial owner. One Core service key is
+configured identically in both signing settings, stored in ignored local/server environment
+files (mode 600) and GitHub Secret `ENV_CORE`. Its public identity is authorized in Registry
+and both factories. No private key or environment contents are recorded in this document or
+committed to Git. The temporary deployer password file was removed after broadcasting.
+Core was subsequently connected and deployed as recorded below.
 
 The owner explicitly deferred Tribunal: its address is zero in Distributor, Fabrica and both
 community factories. Judicial operations remain disabled. The agreed escrow, voting, protected
@@ -35,8 +36,8 @@ Tribunal settings in [.env.example](.env.example). The expected deployer is the 
 owner and Core must be distinct nonzero authorities. Tribunal may explicitly be zero; a
 future nonzero Tribunal must differ from both. Owner-only setters can activate it later.
 Existing asset/community clones require their own Tribunal setting; factory changes affect
-future clones. Token decimals
-are read from the actual token, without its symbol, and checked against configuration.
+future clones. Token decimals are read from the actual token, without its symbol, and
+checked against configuration.
 Supported token decimals are 0-72. `deploy.sh` simulates by default; actual broadcasting uses
 an explicit `--broadcast` after authorization. Simulation uses only the public sender;
 the encrypted account is selected for an explicit broadcast. The entry point rejects
@@ -47,11 +48,62 @@ package. Core's deferred organization-creation path needs that matching voucher 
 enablement. The new factory/asset/community source is for fresh instances, not an automatic
 upgrade or migration of historical clones. All canonical address/block/receipt entries below are backed by successful RPC receipts.
 
+## Core connection — verified 2026-10-24
+
+The existing VPS service `core-service` is connected to the canonical Chiado stack.
+Core source revision: [`2539af45e8fbf46ba64aa1d0e1a4a7e221c93506`](https://github.com/juvantia/core/commit/2539af45e8fbf46ba64aa1d0e1a4a7e221c93506).
+The [Build & Auto-Deploy workflow](https://github.com/juvantia/core/actions/runs/40093914067)
+completed successfully. Post-deployment verification confirmed the deployed source revision,
+a running container with zero restarts, successful application startup and the configuration
+and service signer matching the deployment registry.
+
+Core's local/server environment and GitHub `ENV_CORE` contain the selected chain/RPC/token,
+18 token decimals, both public signing roles and the following canonical contract bindings.
+Use factory/TradeHub proxies, rather than their implementation addresses.
+
+| Core setting | Role in `deployment.json` |
+| --- | --- |
+| `PAYMENT_REGISTRY_ADDRESS` | `registry` |
+| `REVENUE_DISTRIBUTOR_ADDRESS` | `revenue` |
+| `SERVICE_PAYMENTS_ADDRESS` | `services` |
+| `TRADE_HUB_ADDRESS` | `trade` |
+| `AERARIUM_ADDRESS` | `aerarium` |
+| `CONSORTIUM_FACTORY_ADDRESS` | `consortiumFactory` |
+| `SYNDICATE_FACTORY_ADDRESS` | `syndicateFactory` |
+
+`PAYMENT_INVOICE_SIGNING_KEY` and `COMMUNITY_AUTHORIZER_PRIVATE_KEY` contain the same
+service key. Both configured public roles match its derived address. Core now rejects missing
+release settings, zero/malformed addresses, invalid or differing keys and mismatched public
+roles. Implicit chain/token defaults, contract placeholders and the fallback test signing key
+were removed. Environment files are excluded from Docker build context; runtime configuration
+is loaded through Compose `env_file`. Future deployments restore it from `ENV_CORE`.
+
+Local validation passed: 195 Core tests, TypeScript typecheck and build. All 62 checked Core
+function/event ABI entries match the verified deployment exports; the unused, nonexistent
+`distributeRevenue(address,uint256)` ABI entry was removed. Runtime verification confirmed:
+
+- Public TradeHub order reading returned HTTP 200 and zero orders at verification time.
+- A profile request without a verified session returned HTTP 401.
+- Runtime contract addresses and the derived Core signer matched the canonical release.
+- Both persisted signing settings matched the provisioned key; server `.env` had mode 600.
+- The private `.env` file was absent from the runtime image.
+- Wallet table chain constraints already selected 10200; no chain-constraint migration was needed.
+
+`COMMUNITY_CREATION_ENABLED=false` keeps creation fees, voucher signing and submitted
+community deployment confirmation disabled. Participant consent/caller authorization,
+canonical creation receipts and the current Consortium voucher's `pettyLimit`/`majorLimit`
+fields must be completed before enabling that workflow. Tribunal remains disabled separately.
+ZeroDev connectivity and gas sponsorship were not retested at the owner's request.
+
+Financial category/rate publication and real paid lifecycle acceptance remain pending.
+These deployment and read/authentication checks do not establish successful payment settlement,
+service entitlements, revenue collection, Admin/client activation or a native release.
+
 ## Historical preparation — 2026-10-06
 
-There is currently no canonical deployment for the configurable ZeroDev universal-settlement
-stack. The user is still selecting the network. No on-chain transactions were broadcast by the
-settlement implementation or this documentation update. No deployment addresses/blocks are asserted.
+At this historical preparation stage, the network had not yet been selected and no canonical
+universal-settlement deployment had been receipt-verified. Those source/documentation changes
+broadcast no transactions. The later Chiado deployment and Core connection are recorded above.
 
 The clarified tax-only, seller-priced model is documented in
 [Core PAYMENTS.md](../core/docs/PAYMENTS.md). Additional commissions are removed from source,
@@ -80,6 +132,8 @@ Deployment configuration is supplied at release time through:
 
 - `BLOCKCHAIN_CHAIN_ID`
 - `BLOCKCHAIN_RPC_URL`
+- `DEPLOYER_ADDRESS`: expected deployment signer and initial owner
+- `DEPLOYER_ACCOUNT`: encrypted Foundry account label for broadcasting
 - `EURO_TOKEN_ADDRESS`
 - `EURO_TOKEN_DECIMALS` in the services, checked against the actual token
 - `PAYMENT_INVOICE_ISSUER_ADDRESS`: public address derived from the single Core service key
@@ -112,28 +166,40 @@ Verify Fabrica and Consortium factory asset registrars; Syndicate factory paymen
 TradeHub escrow/source; ServicePayments/Aerarium sources; Consortium/Syndicate instance roles.
 Source bits are TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8 and Aerarium=16.
 
-## Required activation evidence
+## Activation evidence and remaining work
 
-1. Verify successful deployment/configuration receipts, selected chain ID, real token/decimals,
-   proxy implementations and every cross-contract binding.
-2. Export real ABIs, addresses and deployment blocks for Core/Admin and other integrations.
-3. Publish the administrator's selected tax categories/BPS with the actual Registry owner.
+Completed for this release:
+
+1. Receipt verification of all deployment/configuration transactions, token/decimals,
+   proxy implementations and cross-contract bindings.
+2. Export of canonical addresses, blocks, receipts and all 11 integration ABIs.
+3. Core configuration/key provisioning, ABI checks, automated deployment and runtime
+   contract-read/authentication checks described above. The same service identity is authorized
+   in Registry and both factories; owner and Tribunal authority remain separate.
+
+Remaining before claiming paid lifecycle acceptance:
+
+1. Publish the administrator's selected tax categories/BPS with the actual Registry owner.
    Saving a draft activates nothing. Seller tariffs belong to seller service configuration,
-   not the tax catalog. Include the separately taxed owners' allocation operation.
-   Existing private full-principal mechanisms retain their domain requirements.
-   No catalog of concrete services/categories is prescribed by this deployment record.
-4. Check that both Core signing settings contain the same key and that Registry's permitted
-   issuer and both factory authorizers equal its single derived address. The Core key receives
-   no owner/Tribunal authority. Rotation must update both Core settings, Registry and both factories.
-5. Resolve the payment-model differences and known Core receipt/consent/configuration/cutover gaps
-   in Core readiness before declaring the whole server layer operational.
-6. Exercise actual paid invoice/entitlement, civic fee/factory creation, trade, Consortium
-   owners' allocation, operating/budget spending, public custom settlement and claimAll receipts.
-   Verify the clarified gross = tax + net, the real debited payer and single beneficiary,
-   unchanged historical invoices, replay/expiry failure and recovery. Include a device service
-   with/without published renter_id, minute-boundary starts/ends, WS revocation/reconnect,
-   Cloud Menu editor handover and preservation of signed recipients. Agreement payments
-   must still credit owners before/during/after rental and after operator/renter changes.
+   not the tax catalog. Include the separately taxed owners' allocation operation and the
+   domain-required private zero-charge principal rules. No category catalog or prices are
+   prescribed by this deployment record.
+2. Exercise actual paid invoice/entitlement, trade, operating/budget spending, public custom
+   settlement and claimAll receipts. Verify gross = tax + net, the real payer and beneficiary,
+   unchanged historical invoices, replay/expiry failures and ambiguous-send recovery. Include
+   device service routing with/without published renter_id, rental minute boundaries,
+   WS revocation/reconnect and Cloud Menu editor handover. Agreement payments must credit
+   owners before/during/after rental and after operator/renter changes.
+3. Complete the deferred community consent, caller authorization and creation receipt checks,
+   update the Consortium voucher fields and then validate civic fee/factory creation and owners'
+   allocation before enabling community creation. Organizational payer support and other
+   remaining integration gaps are tracked in [Core readiness](../core/docs/DEPLOYMENT_READINESS.md).
+4. Configure and verify remaining Admin/client integrations against this canonical stack.
+   Native binary/OTA publication requires its own release authorization.
+
+Key rotation must update both Core secret settings, both public roles, the Registry issuer
+grant and both factory authorizers. Reverify the same new identity across those verification
+points before resuming signature issuance.
 
 Net is a central credit until collection; tax reaches Aerarium immediately.
 Rule tuple and Settlement event signatures changed. Export matching ABIs for all services and
@@ -167,8 +233,8 @@ Core public signer: `0x5002d9895e30a097d69dd64e98899158eb1c7610`. Tribunal: expl
 
 All creation and configuration receipts and proxy relationships are also recorded in the
 [machine-readable registry](deployments/chiado-10200/deployment.json). No old clones, balances
-or economic state migrate automatically. Tax-category publication, real paid lifecycle acceptance
-and server/client activation remain separate work; this record verifies the contract deployment.
+or economic state migrate automatically. Core connection is verified above. Tax-category
+publication, real paid lifecycle acceptance and remaining Admin/client integrations are pending.
 Native binary/OTA publication has not occurred.
 
 ## Seller category and price release update — 2026-10-07
@@ -182,4 +248,5 @@ judicial payments require a supplied category. Financial Consortium proposals bi
 Syndicate collection rounds bind collection/refund categories. Authorities and full-principal
 checks remain unchanged. Organization backend workflow completion is deferred, not established
 by these interface changes. Export matching ABIs before chain activation; old argument lists
-are not silently accepted with a default category. No on-chain transaction was sent.
+are not silently accepted with a default category. That source update sent no on-chain
+transaction; the later Chiado deployment is recorded above.
