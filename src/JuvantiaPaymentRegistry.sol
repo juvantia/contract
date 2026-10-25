@@ -1,11 +1,12 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
-/// @notice Immutable protocol code; only the owner publishes versioned financial data.
-contract JuvantiaPaymentRegistry is Ownable {
+/// @notice Owner-upgradeable financial registry with persistent, versioned rules and issuer grants.
+contract JuvantiaPaymentRegistry is OwnableUpgradeable, UUPSUpgradeable {
     uint256 public constant MAX_QUOTE_TTL = 7 days;
 
     struct Rule {
@@ -29,7 +30,15 @@ contract JuvantiaPaymentRegistry is Ownable {
     event RulePublished(bytes32 indexed categoryId, uint256 indexed revision, bytes32 ruleHash);
     event InvoiceIssuerSet(address indexed issuer, bool allowed);
 
-    constructor(address admin) Ownable(admin) {}
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address admin) external initializer {
+        __Ownable_init(admin);
+    }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function publish(bytes32 categoryId, Rule calldata rule) external onlyOwner returns (uint256 revision) {
         require(categoryId != bytes32(0), "Invalid category");

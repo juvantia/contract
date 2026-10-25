@@ -11,6 +11,7 @@ import urllib.request
 
 ROOT = Path(__file__).resolve().parents[1]
 IMPLEMENTATION_SLOT = "0x360894a13ba1a3210667c828492db98dca3e2076cc3735a920a3ca505d382bbc"
+INITIALIZATION_SLOT = "0xf0c57e16840df040f15088dc2f81fe391c3923bec73e23a9662efc9c229c6a00"
 ZERO = "0x" + "0" * 40
 
 
@@ -53,7 +54,7 @@ def main():
     chain = int(rpc_batch([("eth_chainId", [])])[0], 16)
     require(chain == int(settings["BLOCKCHAIN_CHAIN_ID"]) == broadcast["chain"], "Chain mismatch")
     txs = broadcast["transactions"]
-    require(len(txs) == 27 and not broadcast["pending"], "Full broadcast is incomplete")
+    require(len(txs) == 30 and not broadcast["pending"], "Full broadcast is incomplete")
     require(all(tx.get("hash") for tx in txs), "Missing transaction hash")
     require(len({tx["hash"] for tx in txs}) == len(txs), "Duplicate transaction hash")
     receipts = rpc_batch([("eth_getTransactionReceipt", [tx["hash"]]) for tx in txs])
@@ -73,9 +74,12 @@ def main():
 
     # CREATE order is fixed by DeployJuvantia.run(); proxy records use their implementation ABI.
     inventory = [
-        ("aerarium", "JuvantiaAerarium", False),
-        ("revenue", "JuvantiaRevenueDistributor", False),
-        ("registry", "JuvantiaPaymentRegistry", False),
+        ("aerariumImplementation", "JuvantiaAerarium", False),
+        ("aerarium", "JuvantiaAerarium", True),
+        ("revenueImplementation", "JuvantiaRevenueDistributor", False),
+        ("revenue", "JuvantiaRevenueDistributor", True),
+        ("registryImplementation", "JuvantiaPaymentRegistry", False),
+        ("registry", "JuvantiaPaymentRegistry", True),
         ("assetImplementation", "JuvantiaAsset", False),
         ("fabricaImplementation", "JuvantiaAssetFabrica", False),
         ("fabrica", "JuvantiaAssetFabrica", True),
@@ -171,10 +175,17 @@ def main():
     check("revenue", "sourceRoles(address)", 0, owner)
     check("revenue", "INVOICE_TYPEHASH()", "0x0d1c4bdc3257b17f4d966adfd57c5e8e7dce2def63dbb2573e3f94ac65875233")
     check("revenue", "registrarRoles(address)", 8, address("syndicateFactory"))
-    for role in ["fabrica", "trade", "consortiumFactory", "syndicateFactory"]:
+    for role in ["aerarium", "revenue", "registry", "fabrica", "trade", "consortiumFactory", "syndicateFactory"]:
         checks.append(("eth_getStorageAt", [address(role), IMPLEMENTATION_SLOT, block_tag]))
         expected.append((role + ".implementation", int(address(role + "Implementation"), 16)))
         contracts[role]["implementation"] = address(role + "Implementation")
+        implementation = role + "Implementation"
+        check(implementation, "proxiableUUID()", IMPLEMENTATION_SLOT)
+        check(implementation, "owner()", ZERO)
+        checks.append(("eth_getStorageAt", [address(implementation), INITIALIZATION_SLOT, block_tag]))
+        expected.append((implementation + ".initializersDisabled", (1 << 64) - 1))
+        checks.append(("eth_getStorageAt", [address(role), INITIALIZATION_SLOT, block_tag]))
+        expected.append((role + ".initialized", 1))
     checks.append(("eth_call", [{"to": token, "data": "0x313ce567"}, block_tag]))
     expected.append(("token.decimals", int(settings["EURO_TOKEN_DECIMALS"])))
     for result, (label, value) in zip(rpc_batch(checks), expected):
@@ -207,6 +218,9 @@ def main():
             explorer = output / "explorer-verification.json"
             if explorer.exists():
                 files.append(explorer)
+            integration = output / "integration-verification.json"
+            if integration.exists():
+                files.append(integration)
             for source in files:
                 target = archive / source.relative_to(output)
                 require(not target.exists() or target.read_bytes() == source.read_bytes(), "Conflicting archived evidence")
@@ -214,6 +228,7 @@ def main():
                 shutil.copyfile(source, target)
             # Old explorer evidence must not be presented as verification of the new addresses.
             explorer.unlink(missing_ok=True)
+            integration.unlink(missing_ok=True)
 
     (output / "abi").mkdir(parents=True, exist_ok=True)
     abi_names = {name + ".json" for _, name, _ in inventory}

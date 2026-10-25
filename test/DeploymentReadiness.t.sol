@@ -113,6 +113,9 @@ contract DeploymentReadinessTest is Test {
         assertEq(revenue.sourceRoles(d.aerarium), 16);
         assertEq(revenue.sourceRoles(d.trade), 1);
         assertEq(revenue.registrarRoles(d.syndicateFactory), 8);
+        assertEq(_implementation(d.aerarium), d.aerariumImplementation);
+        assertEq(_implementation(d.revenue), d.revenueImplementation);
+        assertEq(_implementation(d.registry), d.registryImplementation);
         assertEq(_implementation(d.fabrica), d.fabricaImplementation);
         assertEq(_implementation(d.trade), d.tradeImplementation);
         assertEq(_implementation(d.consortiumFactory), d.consortiumFactoryImplementation);

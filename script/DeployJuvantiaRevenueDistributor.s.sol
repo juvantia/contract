@@ -2,6 +2,7 @@
 pragma solidity ^0.8.24;
 
 import {Script, console} from "forge-std/Script.sol";
+import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol";
 
 contract DeployJuvantiaRevenueDistributor is Script {
@@ -12,9 +13,18 @@ contract DeployJuvantiaRevenueDistributor is Script {
         address registry = vm.envAddress("PAYMENT_REGISTRY_ADDRESS");
         vm.startBroadcast();
         (, address deployer,) = vm.readCallers();
-        JuvantiaRevenueDistributor distributor = new JuvantiaRevenueDistributor(euroToken, deployer, aerarium);
+        JuvantiaRevenueDistributor implementation = new JuvantiaRevenueDistributor();
+        JuvantiaRevenueDistributor distributor = JuvantiaRevenueDistributor(
+            address(
+                new ERC1967Proxy(
+                    address(implementation),
+                    abi.encodeCall(JuvantiaRevenueDistributor.initialize, (euroToken, deployer, aerarium))
+                )
+            )
+        );
         distributor.setPaymentRegistry(registry);
         vm.stopBroadcast();
+        console.log("JuvantiaRevenueDistributor implementation", address(implementation));
         console.log("JuvantiaRevenueDistributor", address(distributor));
     }
 }

@@ -18,6 +18,12 @@ actual token decimals on chain. Do not query/store its symbol. All money uses in
 Old economic state and addresses are not migration targets. See [DEPLOYMENTS.md](DEPLOYMENTS.md)
 and [Core activation readiness](../core/docs/DEPLOYMENT_READINESS.md).
 
+Owner clarification, 2026-10-26: existing Asset, Consortium and Syndicate instances keep their
+creation-time contract code. Never introduce beacon or instance upgrades for them. Common
+RevenueDistributor, Aerarium and PaymentRegistry must support owner-authorized UUPS upgrades.
+This is implemented in source; the earlier ordinary contracts require a fresh proxy deployment.
+Only receipt-verified evidence in DEPLOYMENTS.md establishes that transition as deployed.
+
 ---
 
 ## ⚙️ Core Architecture & Design Patterns
@@ -26,7 +32,9 @@ and [Core activation readiness](../core/docs/DEPLOYMENT_READINESS.md).
 To optimize gas efficiency when minting new RWA assets (Robulus, Domus, Cella, Apparatus, Sector), `JuvantiaAssetFabrica` deploys lightweight `JuvantiaAsset` minimal proxies using OpenZeppelin's `Clones` library.
 
 ### 2. Factory Upgradeability (UUPS - ERC-1967)
-`JuvantiaAssetFabrica` and `JuvantiaTradeHub` are deployed behind ERC-1967 Proxies inheriting from OpenZeppelin `UUPSUpgradeable` and `OwnableUpgradeable`. Upgrades are authorized via `_authorizeUpgrade`.
+The factory entry points, TradeHub and common financial infrastructure use ERC-1967/UUPS
+proxies with owner-authorized `_authorizeUpgrade`. See [UPGRADES.md](UPGRADES.md). Asset,
+Consortium and Syndicate clones retain fixed implementation addresses and have no upgrade entry point.
 
 ### 3. Clone and Proxy Initialization & Sub-Asset Hierarchy
 Clone/proxy instance state is initialized atomically through guarded `initialize()` functions. Implementation constructors disable initializers and may set checked immutable dependencies; they must not be mistaken for instance initialization. Plain non-proxy contracts use checked constructor configuration. Deployer remains the factory/upgrade authority on the configured blockchain.
@@ -42,9 +50,9 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | **`JuvantiaAssetFabrica.sol`** | UUPS Upgradeable Proxy | Asset Factory entry point. Deploys and registers new `JuvantiaAsset` tokens, managing parent-child asset hierarchy (`parentAsset`, `subAssets`, `createSubAsset`). |
 | **`JuvantiaAsset.sol`** | EIP-1167 Cloneable ERC-20 | Standard RWA asset token contract (18 decimal places, 100,000 total supply per asset). |
 | **`JuvantiaTradeHub.sol`** | UUPS Upgradeable Proxy | Registered-share escrow; euro price per full share, integer ceiling for fills; forwards seller proceeds atomically to RevenueDistributor and has no withdrawal method. Unsold shares retain their seller's revenue rights. |
-| **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
-| **`JuvantiaAerarium.sol`** | Central budget | Immediate tax custody, registry-delegated tax reads, and owner-authorized spending through Distributor. |
-| **`JuvantiaPaymentRegistry.sol`** | Non-upgradeable rule registry | Owner-published category revisions, taxes, permitted destinations/sources, invoice issuer grants; no seller prices. |
+| **`JuvantiaRevenueDistributor.sol`** | UUPS accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
+| **`JuvantiaAerarium.sol`** | UUPS central budget | Immediate tax custody, registry-delegated tax reads, and owner-authorized spending through Distributor. |
+| **`JuvantiaPaymentRegistry.sol`** | UUPS rule registry | Owner-published category revisions, taxes, permitted destinations/sources, invoice issuer grants; no seller prices. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Operating custody and governed allocation of owners' revenue earnings into RevenueDistributor; read-only views of its distributed reserve. |
 | **`community/Consortium.sol` / `Syndicate.sol`** | Cloneable organizations | Authorized operating settlement, Consortium owners' allocation, Syndicate quotas/refunds, governance and Tribunal enforcement. |
 | **`community/ConsortiumFactory.sol` / `SyndicateFactory.sol`** | UUPS factories / EIP-1167 clones | Community creation voucher authorization, instance initialization, asset/source registration and receipt events. |
@@ -72,8 +80,8 @@ Seller service/order data now supplies prices and categories; no names or prices
 see [implementation differences](../core/docs/PAYMENT_IMPLEMENTATION.md). The source behavior
 below is a technical reference, not an expansion of the clarified business requirements.
 
-All official non-P2P payments enter RevenueDistributor first. PaymentRegistry is non-upgradeable;
-only its owner publishes versioned rules. Tax immediately enters Aerarium; addressed net
+All official non-P2P payments enter RevenueDistributor first. PaymentRegistry supports owner
+upgrades and only its owner publishes versioned rules. Tax immediately enters Aerarium; addressed net
 accrues centrally. Asset net retains the transfer-aware O(1) index, fractional remainders,
 attributed escrow and Consortium treasury exclusion. Consortium allocation has its own tax category;
 governance approves gross and the owners' pool contains net. Core invoices settle directly through
@@ -214,14 +222,26 @@ Native binary/OTA publication is separate from server/contract activation.
 - **Compile**: `forge build`
 - **Run Unit Tests**: `forge test`
 - **Configuration**: Solidity 0.8.30, Cancun, optimizer 200, 512 fuzz runs.
+- **Storage gate**: `python3 script/check_storage_layout.py`; validate separately named proposed
+  implementations with `--candidate` before upgrading. Run its Python regressions with
+  `python3 -m unittest discover -s test -p 'test_storage_layout.py'`.
 - **Deployment gate**: `DeployJuvantia.s.sol` requires explicit blockchain and euro-token environment variables, but prepares full community/source wiring; receipt-verified canonical registry export remains required. Do not broadcast a partial migration as the completed stack.
 - **Confirmation**: Backend verifies the specific successful UserOperation and transaction receipt; no consensus-finality wait, webhook or permanent indexer.
 
 ---
 
 ## ⚠️ Storage Layout & Upgrade Mandates
-When modifying upgradeable contracts (`JuvantiaAssetFabrica`, `JuvantiaTradeHub`):
+When modifying any UUPS contract (factories, TradeHub or common financial infrastructure):
 - **Never modify existing storage variable order**. Always append new state variables to the bottom of the contract storage layout to prevent storage collisions during upgrades.
+- Keep PaymentSettlement's base storage frozen; append new Distributor state at the end of
+  the concrete contract. Preserve Registry Rule/Version shapes and nested mapping layouts.
+  The reviewed baseline in `storage-layout/infrastructure-v1.json` guards existing slots,
+  types, struct members and pinned OpenZeppelin namespaced-storage dependencies. Do not
+  replace it to hide an incompatible change. `--record` validates existing fields before extension.
+- Constructors lock implementation initializers. Initialize owner/token/EIP-712 in the
+  proxy constructor atomically. Token addresses and the EIP-712 domain belong to proxy state.
+- Fixed Asset/Consortium/Syndicate clones remain fixed; ordinary membership, votes and
+  permitted settings can change under their original rules without replacing their code.
 - **Always update the canonical deployment registry and [`DEPLOYMENTS.md`](DEPLOYMENTS.md)** immediately after receipt-verified deployments or upgrades.
 - Release preparation/status may be documented before deployment, but addresses, transactions,
   deployment blocks and "live" claims must appear only with verified receipt evidence.

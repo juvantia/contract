@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {InfrastructureFixture} from "./InfrastructureFixture.sol";
+
 import {Test} from "forge-std/Test.sol";
 import {ERC20} from "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -31,9 +33,9 @@ abstract contract ProtocolFixture is Test {
 
     function setUp() public virtual {
         euroToken = new TestEuroToken();
-        aerarium = new JuvantiaAerarium(address(euroToken), address(this));
-        revenue = new JuvantiaRevenueDistributor(address(euroToken), address(this), address(aerarium));
-        registry = new JuvantiaPaymentRegistry(address(this));
+        aerarium = InfrastructureFixture.budget(address(euroToken), address(this));
+        revenue = InfrastructureFixture.distributor(address(euroToken), address(this), address(aerarium));
+        registry = InfrastructureFixture.registry(address(this));
         revenue.setPaymentRegistry(address(registry));
         aerarium.configureSettlement(address(registry), address(revenue));
         revenue.setPaymentSource(address(aerarium), 16);

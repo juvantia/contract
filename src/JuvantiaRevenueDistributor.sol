@@ -3,8 +3,7 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
-import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 import {IRevenueTreasury} from "./interfaces/IRevenueTreasury.sol";
 import {PaymentSettlement} from "./PaymentSettlement.sol";
@@ -14,7 +13,7 @@ interface IRevenueAsset is IERC20 {
 }
 
 /// @notice On-chain accrual and payment settlement for registered fixed-supply assets; no backend claim signatures.
-contract JuvantiaRevenueDistributor is PaymentSettlement {
+contract JuvantiaRevenueDistributor is PaymentSettlement, UUPSUpgradeable {
     using SafeERC20 for IERC20;
 
     uint256 public constant PRECISION = 1e36;
@@ -62,7 +61,15 @@ contract JuvantiaRevenueDistributor is PaymentSettlement {
         _;
     }
 
-    constructor(address token, address admin, address treasury) PaymentSettlement(token, admin, treasury) {}
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address token, address admin, address treasury) external initializer {
+        __PaymentSettlement_init(token, admin, treasury);
+    }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function setTribunal(address newTribunal) external onlyOwner {
         address old = tribunal;

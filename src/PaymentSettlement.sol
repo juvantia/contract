@@ -3,15 +3,15 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
-import {EIP712} from "@openzeppelin/contracts/utils/cryptography/EIP712.sol";
+import {EIP712Upgradeable} from "@openzeppelin/contracts-upgradeable/utils/cryptography/EIP712Upgradeable.sol";
 import {ECDSA} from "@openzeppelin/contracts/utils/cryptography/ECDSA.sol";
 import {JuvantiaPaymentRegistry} from "./JuvantiaPaymentRegistry.sol";
 import {JuvantiaAerarium} from "./JuvantiaAerarium.sol";
 
 /// @dev Shared settlement and addressed custody. Asset accrual remains in RevenueDistributor.
-abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
+abstract contract PaymentSettlement is OwnableUpgradeable, ReentrancyGuard, EIP712Upgradeable {
     using SafeERC20 for IERC20;
 
     struct Payment {
@@ -36,7 +36,8 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
     bytes32 public constant INVOICE_TYPEHASH = keccak256(
         "Invoice(bytes32 paymentId,bytes32 categoryId,uint256 revision,uint8 kind,address destination,address asset,uint256 gross,uint256 issuedAt,uint256 expiresAt,address payer)"
     );
-    IERC20 public immutable revenueToken;
+    // Proxy V1 storage. Keep this base layout frozen; append new state in the concrete Distributor.
+    IERC20 public revenueToken;
     JuvantiaAerarium public aerarium;
     JuvantiaPaymentRegistry public paymentRegistry;
     mapping(address => uint256) public sourceRoles;
@@ -72,11 +73,10 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
         uint256 net
     );
 
-    constructor(address token, address admin, address treasury)
-        Ownable(admin)
-        EIP712("JuvantiaRevenueDistributor", "2")
-    {
+    function __PaymentSettlement_init(address token, address admin, address treasury) internal onlyInitializing {
         require(token.code.length > 0, "Invalid token");
+        __Ownable_init(admin);
+        __EIP712_init("JuvantiaRevenueDistributor", "2");
         revenueToken = IERC20(token);
         _setAerarium(treasury);
     }

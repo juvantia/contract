@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {InfrastructureFixture} from "./InfrastructureFixture.sol";
+
 import {SyndicateFactoryFixture} from "./SyndicateFactory.t.sol";
 import {SyndicateFactory} from "../src/community/SyndicateFactory.sol";
 import {Syndicate} from "../src/community/Syndicate.sol";
@@ -328,9 +330,9 @@ contract SyndicateDecimalsTest is Test {
         returns (SyndicateDecimalToken token, Syndicate clan, JuvantiaRevenueDistributor distributor)
     {
         token = new SyndicateDecimalToken(decimals_);
-        JuvantiaAerarium budget = new JuvantiaAerarium(address(token), address(this));
-        distributor = new JuvantiaRevenueDistributor(address(token), address(this), address(budget));
-        JuvantiaPaymentRegistry rules = new JuvantiaPaymentRegistry(address(this));
+        JuvantiaAerarium budget = InfrastructureFixture.budget(address(token), address(this));
+        distributor = InfrastructureFixture.distributor(address(token), address(this), address(budget));
+        JuvantiaPaymentRegistry rules = InfrastructureFixture.registry(address(this));
         distributor.setPaymentRegistry(address(rules));
         budget.configureSettlement(address(rules), address(distributor));
         rules.publish(keccak256("expense"), JuvantiaPaymentRegistry.Rule(true, true, 1, 0, 0));

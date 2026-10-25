@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {InfrastructureFixture} from "./InfrastructureFixture.sol";
+
 import {ProtocolFixture} from "./ProtocolFixture.sol";
 import {Consortium} from "../src/community/Consortium.sol";
 import {ConsortiumFactory} from "../src/community/ConsortiumFactory.sol";
@@ -354,10 +356,10 @@ contract ConsortiumGovernanceTest is ProtocolFixture {
 
     function testOwnerConfiguredSixDecimalLimitsUseExactBaseUnits() public {
         SixDecimalConsortiumEuro token = new SixDecimalConsortiumEuro();
-        JuvantiaAerarium budget = new JuvantiaAerarium(address(token), address(this));
+        JuvantiaAerarium budget = InfrastructureFixture.budget(address(token), address(this));
         JuvantiaRevenueDistributor distributor =
-            new JuvantiaRevenueDistributor(address(token), address(this), address(budget));
-        JuvantiaPaymentRegistry rules = new JuvantiaPaymentRegistry(address(this));
+            InfrastructureFixture.distributor(address(token), address(this), address(budget));
+        JuvantiaPaymentRegistry rules = InfrastructureFixture.registry(address(this));
         distributor.setPaymentRegistry(address(rules));
         budget.configureSettlement(address(rules), address(distributor));
         rules.publish(RECEIPT, JuvantiaPaymentRegistry.Rule(true, true, 1, 0, 0));

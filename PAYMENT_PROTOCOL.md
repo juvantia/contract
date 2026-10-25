@@ -20,11 +20,18 @@ contracts contain no catalog of category names. Core takes category/price from t
 service/offer. Civitas tariffs are separate seller records in Admin, not tax Registry data.
 See [current backend behavior](../core/docs/PAYMENT_IMPLEMENTATION.md).
 
-The direct-invoice revision requires a fresh configured stack: Distributor is non-upgradeable and its dependencies bind its address. See DEPLOYMENTS.md for receipt-verified activation; source checks alone do not establish deployment.
+The owner's 2026-10-26 clarification makes common Distributor, Aerarium and Registry logic
+owner-upgradeable through UUPS proxies. Created assets and communities retain their original
+fixed clone code. [UPGRADES.md](UPGRADES.md) defines storage and initialization checks.
+The earlier deployed ordinary financial contracts cannot become proxies at the same addresses;
+their initial replacement requires a fresh configured stack. See DEPLOYMENTS.md for actual
+receipt-verified activation; source checks alone do not establish deployment.
 
 ## Settlement and custody
 
-All official non-P2P payments enter Distributor first. Registry revisions are owner-published;
+All official non-P2P payments enter Distributor first. Common financial logic is owner-upgradeable;
+proxy state retains balances, accrual/replay records, rules and permissions through compatible
+upgrades. Registry revisions are owner-published;
 Admin SQL drafts/labels do not activate them. Unknown/inactive categories fail closed.
 Explicit zero tax also requires publication. Tax immediately enters Aerarium.
 Addressed net is credited to accountRevenue until collection.

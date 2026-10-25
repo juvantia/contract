@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.24;
 
+import {InfrastructureFixture} from "./InfrastructureFixture.sol";
+
 import {ProtocolFixture} from "./ProtocolFixture.sol";
 import {Clones} from "@openzeppelin/contracts/proxy/Clones.sol";
 import {ERC1967Proxy} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Proxy.sol";
@@ -365,7 +367,7 @@ contract ConsortiumTreasuryTest is ProtocolFixture {
         vm.expectRevert("Not registrar");
         revenue.registerAsset(address(shares), address(company));
         JuvantiaRevenueDistributor other =
-            new JuvantiaRevenueDistributor(address(euroToken), address(this), address(aerarium));
+            InfrastructureFixture.distributor(address(euroToken), address(this), address(aerarium));
         ConsortiumTreasuryHarness mismatched =
             ConsortiumTreasuryHarness(Clones.clone(address(new ConsortiumTreasuryHarness())));
         mismatched.initialize(address(euroToken), address(shares), address(other), address(this));

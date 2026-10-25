@@ -3,7 +3,8 @@ pragma solidity ^0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
-import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import {UUPSUpgradeable} from "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 import {JuvantiaPaymentRegistry} from "./JuvantiaPaymentRegistry.sol";
 
@@ -15,10 +16,10 @@ interface IBudgetSettlement {
 }
 
 /// @notice Central Treasury and Tax Register for the Juvantia ecosystem.
-contract JuvantiaAerarium is Ownable, ReentrancyGuard {
+contract JuvantiaAerarium is OwnableUpgradeable, UUPSUpgradeable, ReentrancyGuard {
     using SafeERC20 for IERC20;
 
-    IERC20 public immutable revenueToken;
+    IERC20 public revenueToken;
     uint256 public totalCollected;
     uint256 public totalSpent;
 
@@ -29,11 +30,17 @@ contract JuvantiaAerarium is Ownable, ReentrancyGuard {
     event TreasurySpent(address indexed recipient, uint256 amount, string purpose);
     event SettlementConfigured(address indexed registry, address indexed distributor);
 
-    constructor(address token, address admin) Ownable(admin) {
+    constructor() {
+        _disableInitializers();
+    }
+
+    function initialize(address token, address admin) external initializer {
         require(token.code.length > 0, "Invalid token");
-        require(admin != address(0), "Invalid admin");
+        __Ownable_init(admin);
         revenueToken = IERC20(token);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 
     function configureSettlement(address registry, address distributor) external onlyOwner {
         require(revenueDistributor == address(0), "Already configured");

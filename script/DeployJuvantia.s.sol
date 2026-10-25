@@ -75,8 +75,11 @@ abstract contract JuvantiaDeploymentPreflight is Script {
 contract DeployJuvantia is JuvantiaDeploymentPreflight {
     /// @dev Simulation output is not a receipt-verified canonical deployment record.
     struct Deployment {
+        address registryImplementation;
         address registry;
+        address aerariumImplementation;
         address aerarium;
+        address revenueImplementation;
         address revenue;
         address assetImplementation;
         address fabricaImplementation;
@@ -95,9 +98,28 @@ contract DeployJuvantia is JuvantiaDeploymentPreflight {
         ReleaseConfiguration memory config = preflight();
         vm.startBroadcast(config.deployer);
 
-        deployed.aerarium = address(new JuvantiaAerarium(config.euroToken, config.deployer));
-        deployed.revenue = address(new JuvantiaRevenueDistributor(config.euroToken, config.deployer, deployed.aerarium));
-        deployed.registry = address(new JuvantiaPaymentRegistry(config.deployer));
+        deployed.aerariumImplementation = address(new JuvantiaAerarium());
+        deployed.aerarium = address(
+            new ERC1967Proxy(
+                deployed.aerariumImplementation,
+                abi.encodeCall(JuvantiaAerarium.initialize, (config.euroToken, config.deployer))
+            )
+        );
+        deployed.revenueImplementation = address(new JuvantiaRevenueDistributor());
+        deployed.revenue = address(
+            new ERC1967Proxy(
+                deployed.revenueImplementation,
+                abi.encodeCall(
+                    JuvantiaRevenueDistributor.initialize, (config.euroToken, config.deployer, deployed.aerarium)
+                )
+            )
+        );
+        deployed.registryImplementation = address(new JuvantiaPaymentRegistry());
+        deployed.registry = address(
+            new ERC1967Proxy(
+                deployed.registryImplementation, abi.encodeCall(JuvantiaPaymentRegistry.initialize, (config.deployer))
+            )
+        );
         JuvantiaRevenueDistributor revenue = JuvantiaRevenueDistributor(deployed.revenue);
         revenue.setPaymentRegistry(deployed.registry);
         JuvantiaAerarium(deployed.aerarium).configureSettlement(deployed.registry, deployed.revenue);
@@ -165,8 +187,11 @@ contract DeployJuvantia is JuvantiaDeploymentPreflight {
         console.log("Verify successful receipts before recording these addresses as canonical.");
         console.log("Deployer and initial owner", config.deployer);
         console.log("Configured euro-token decimals", uint256(config.euroTokenDecimals));
+        console.log("JuvantiaPaymentRegistry implementation", deployed.registryImplementation);
         console.log("JuvantiaPaymentRegistry", deployed.registry);
+        console.log("JuvantiaAerarium implementation", deployed.aerariumImplementation);
         console.log("JuvantiaAerarium", deployed.aerarium);
+        console.log("JuvantiaRevenueDistributor implementation", deployed.revenueImplementation);
         console.log("JuvantiaRevenueDistributor", deployed.revenue);
         console.log("JuvantiaAsset implementation", deployed.assetImplementation);
         console.log("JuvantiaAssetFabrica implementation", deployed.fabricaImplementation);

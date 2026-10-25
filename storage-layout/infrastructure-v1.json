@@ -1,0 +1,799 @@
+{
+  "schemaVersion": 1,
+  "dependencies": {
+    "lib/openzeppelin-contracts": "5fd1781b1454fd1ef8e722282f86f9293cacf256",
+    "lib/openzeppelin-contracts-upgradeable": "7bf4727aacdbfaa0f36cbd664654d0c9e1dc52bf"
+  },
+  "contracts": {
+    "JuvantiaRevenueDistributor": [
+      {
+        "label": "revenueToken",
+        "slot": "0",
+        "offset": 0,
+        "type": {
+          "label": "contract IERC20",
+          "encoding": "inplace",
+          "bytes": 20
+        }
+      },
+      {
+        "label": "aerarium",
+        "slot": "1",
+        "offset": 0,
+        "type": {
+          "label": "contract JuvantiaAerarium",
+          "encoding": "inplace",
+          "bytes": 20
+        }
+      },
+      {
+        "label": "paymentRegistry",
+        "slot": "2",
+        "offset": 0,
+        "type": {
+          "label": "contract JuvantiaPaymentRegistry",
+          "encoding": "inplace",
+          "bytes": 20
+        }
+      },
+      {
+        "label": "sourceRoles",
+        "slot": "3",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "registrarRoles",
+        "slot": "4",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "paid",
+        "slot": "5",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(bytes32 => bool))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(bytes32 => bool)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "bytes32",
+              "encoding": "inplace",
+              "bytes": 32
+            },
+            "value": {
+              "label": "bool",
+              "encoding": "inplace",
+              "bytes": 1
+            }
+          }
+        }
+      },
+      {
+        "label": "accountRevenue",
+        "slot": "6",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "encumbered",
+        "slot": "7",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => bool)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "bool",
+            "encoding": "inplace",
+            "bytes": 1
+          }
+        }
+      },
+      {
+        "label": "fundingNonce",
+        "slot": "8",
+        "offset": 0,
+        "type": {
+          "label": "uint256",
+          "encoding": "inplace",
+          "bytes": 32
+        }
+      },
+      {
+        "label": "tribunal",
+        "slot": "9",
+        "offset": 0,
+        "type": {
+          "label": "address",
+          "encoding": "inplace",
+          "bytes": 20
+        }
+      },
+      {
+        "label": "registrars",
+        "slot": "10",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => bool)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "bool",
+            "encoding": "inplace",
+            "bytes": 1
+          }
+        }
+      },
+      {
+        "label": "registeredAssets",
+        "slot": "11",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => bool)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "bool",
+            "encoding": "inplace",
+            "bytes": 1
+          }
+        }
+      },
+      {
+        "label": "cumulativeIndex",
+        "slot": "12",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "claimedIndex",
+        "slot": "13",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(address => uint256))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(address => uint256)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "address",
+              "encoding": "inplace",
+              "bytes": 20
+            },
+            "value": {
+              "label": "uint256",
+              "encoding": "inplace",
+              "bytes": 32
+            }
+          }
+        }
+      },
+      {
+        "label": "accrued",
+        "slot": "14",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(address => uint256))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(address => uint256)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "address",
+              "encoding": "inplace",
+              "bytes": 20
+            },
+            "value": {
+              "label": "uint256",
+              "encoding": "inplace",
+              "bytes": 32
+            }
+          }
+        }
+      },
+      {
+        "label": "remainder",
+        "slot": "15",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(address => uint256))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(address => uint256)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "address",
+              "encoding": "inplace",
+              "bytes": 20
+            },
+            "value": {
+              "label": "uint256",
+              "encoding": "inplace",
+              "bytes": 32
+            }
+          }
+        }
+      },
+      {
+        "label": "totalDistributed",
+        "slot": "16",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "totalClaimed",
+        "slot": "17",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "escrows",
+        "slot": "18",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => bool)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "bool",
+            "encoding": "inplace",
+            "bytes": 1
+          }
+        }
+      },
+      {
+        "label": "escrowedFor",
+        "slot": "19",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(address => uint256))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(address => uint256)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "address",
+              "encoding": "inplace",
+              "bytes": 20
+            },
+            "value": {
+              "label": "uint256",
+              "encoding": "inplace",
+              "bytes": 32
+            }
+          }
+        }
+      },
+      {
+        "label": "escrowedBalance",
+        "slot": "20",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(address => uint256))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(address => uint256)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "address",
+              "encoding": "inplace",
+              "bytes": 20
+            },
+            "value": {
+              "label": "uint256",
+              "encoding": "inplace",
+              "bytes": 32
+            }
+          }
+        }
+      },
+      {
+        "label": "escrowPositions",
+        "slot": "21",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(address => mapping(address => uint256)))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(address => mapping(address => uint256))",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "address",
+              "encoding": "inplace",
+              "bytes": 20
+            },
+            "value": {
+              "label": "mapping(address => uint256)",
+              "encoding": "mapping",
+              "bytes": 32,
+              "key": {
+                "label": "address",
+                "encoding": "inplace",
+                "bytes": 20
+              },
+              "value": {
+                "label": "uint256",
+                "encoding": "inplace",
+                "bytes": 32
+              }
+            }
+          }
+        }
+      },
+      {
+        "label": "revenueTreasuries",
+        "slot": "22",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => address)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          }
+        }
+      },
+      {
+        "label": "tradeProceeds",
+        "slot": "23",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => mapping(address => uint256))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "mapping(address => uint256)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "address",
+              "encoding": "inplace",
+              "bytes": 20
+            },
+            "value": {
+              "label": "uint256",
+              "encoding": "inplace",
+              "bytes": 32
+            }
+          }
+        }
+      },
+      {
+        "label": "pendingTradeProceeds",
+        "slot": "24",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "totalTradeDeposited",
+        "slot": "25",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "totalTradeClaimed",
+        "slot": "26",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      }
+    ],
+    "JuvantiaAerarium": [
+      {
+        "label": "revenueToken",
+        "slot": "0",
+        "offset": 0,
+        "type": {
+          "label": "contract IERC20",
+          "encoding": "inplace",
+          "bytes": 20
+        }
+      },
+      {
+        "label": "totalCollected",
+        "slot": "1",
+        "offset": 0,
+        "type": {
+          "label": "uint256",
+          "encoding": "inplace",
+          "bytes": 32
+        }
+      },
+      {
+        "label": "totalSpent",
+        "slot": "2",
+        "offset": 0,
+        "type": {
+          "label": "uint256",
+          "encoding": "inplace",
+          "bytes": 32
+        }
+      },
+      {
+        "label": "paymentRegistry",
+        "slot": "3",
+        "offset": 0,
+        "type": {
+          "label": "contract JuvantiaPaymentRegistry",
+          "encoding": "inplace",
+          "bytes": 20
+        }
+      },
+      {
+        "label": "revenueDistributor",
+        "slot": "4",
+        "offset": 0,
+        "type": {
+          "label": "address",
+          "encoding": "inplace",
+          "bytes": 20
+        }
+      }
+    ],
+    "JuvantiaPaymentRegistry": [
+      {
+        "label": "currentRevision",
+        "slot": "0",
+        "offset": 0,
+        "type": {
+          "label": "mapping(bytes32 => uint256)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "bytes32",
+            "encoding": "inplace",
+            "bytes": 32
+          },
+          "value": {
+            "label": "uint256",
+            "encoding": "inplace",
+            "bytes": 32
+          }
+        }
+      },
+      {
+        "label": "versions",
+        "slot": "1",
+        "offset": 0,
+        "type": {
+          "label": "mapping(bytes32 => mapping(uint256 => struct JuvantiaPaymentRegistry.Version))",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "bytes32",
+            "encoding": "inplace",
+            "bytes": 32
+          },
+          "value": {
+            "label": "mapping(uint256 => struct JuvantiaPaymentRegistry.Version)",
+            "encoding": "mapping",
+            "bytes": 32,
+            "key": {
+              "label": "uint256",
+              "encoding": "inplace",
+              "bytes": 32
+            },
+            "value": {
+              "label": "struct JuvantiaPaymentRegistry.Version",
+              "encoding": "inplace",
+              "bytes": 96,
+              "members": [
+                {
+                  "label": "rule",
+                  "slot": "0",
+                  "offset": 0,
+                  "type": {
+                    "label": "struct JuvantiaPaymentRegistry.Rule",
+                    "encoding": "inplace",
+                    "bytes": 64,
+                    "members": [
+                      {
+                        "label": "active",
+                        "slot": "0",
+                        "offset": 0,
+                        "type": {
+                          "label": "bool",
+                          "encoding": "inplace",
+                          "bytes": 1
+                        }
+                      },
+                      {
+                        "label": "publicAccess",
+                        "slot": "0",
+                        "offset": 1,
+                        "type": {
+                          "label": "bool",
+                          "encoding": "inplace",
+                          "bytes": 1
+                        }
+                      },
+                      {
+                        "label": "destinations",
+                        "slot": "0",
+                        "offset": 2,
+                        "type": {
+                          "label": "uint8",
+                          "encoding": "inplace",
+                          "bytes": 1
+                        }
+                      },
+                      {
+                        "label": "taxBps",
+                        "slot": "0",
+                        "offset": 3,
+                        "type": {
+                          "label": "uint16",
+                          "encoding": "inplace",
+                          "bytes": 2
+                        }
+                      },
+                      {
+                        "label": "sourceRoles",
+                        "slot": "1",
+                        "offset": 0,
+                        "type": {
+                          "label": "uint256",
+                          "encoding": "inplace",
+                          "bytes": 32
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "label": "publishedAt",
+                  "slot": "2",
+                  "offset": 0,
+                  "type": {
+                    "label": "uint64",
+                    "encoding": "inplace",
+                    "bytes": 8
+                  }
+                },
+                {
+                  "label": "supersededAt",
+                  "slot": "2",
+                  "offset": 8,
+                  "type": {
+                    "label": "uint64",
+                    "encoding": "inplace",
+                    "bytes": 8
+                  }
+                }
+              ]
+            }
+          }
+        }
+      },
+      {
+        "label": "invoiceIssuers",
+        "slot": "2",
+        "offset": 0,
+        "type": {
+          "label": "mapping(address => bool)",
+          "encoding": "mapping",
+          "bytes": 32,
+          "key": {
+            "label": "address",
+            "encoding": "inplace",
+            "bytes": 20
+          },
+          "value": {
+            "label": "bool",
+            "encoding": "inplace",
+            "bytes": 1
+          }
+        }
+      }
+    ]
+  }
+}
