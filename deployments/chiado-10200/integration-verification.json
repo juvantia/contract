@@ -1,11 +1,11 @@
 {
   "chainId": 10200,
-  "sourceRevision": "7b9da11",
-  "verifiedAt": "2026-10-25T14:57:06.470433+00:00",
+  "sourceRevision": "9ec8b30",
+  "verifiedAt": "2026-10-25T19:15:44.424036+00:00",
   "compatibility": {
     "checkedAbiEntries": 60,
     "chainId": 10200,
-    "block": "23685622",
+    "block": "23689136",
     "coreAndSolidityDigestMatch": true,
     "invoiceDomainVersion": "2",
     "coreSignerAuthorized": true,
@@ -13,7 +13,7 @@
     "broadcastTransactions": 0
   },
   "core": {
-    "revision": "3e896142ad415d9d553167e6fdee65381bad877e",
+    "revision": "e480cc8eeefce9e0880e3cc0bd8f095e9a4abeb1",
     "running": true,
     "restartCount": 0,
     "canonicalAddressesMatch": true,
@@ -30,7 +30,7 @@
     "tradeHttpStatus": 200,
     "tradeOrderCount": 0,
     "unauthenticatedProfileHttpStatus": 401,
-    "workflowUrl": "https://github.com/juvantia/core/actions/runs/40201397882",
+    "workflowUrl": "https://github.com/juvantia/core/actions/runs/40225015909",
     "githubDeploymentEnvironmentUpdated": true,
     "verifiedCompiledFileSha256": {
       "modules/wallet/settlement.abi.js": "6aea6e4fbd756ada4073225c4127e1c96f4fc90c3fe2313b7fe25ad8fa0bae5b",
@@ -47,11 +47,32 @@
     "unitTestsPassed": 307,
     "androidJavaScriptExport": true,
     "iosJavaScriptExport": true,
-    "binaryOrOtaPublished": false
+    "binaryOrOtaPublished": false,
+    "sourceUnchangedByInfrastructureRelease": true
   },
   "coreTestsPassed": 200,
-  "contractTestsPassed": 177,
+  "contractTestsPassed": 186,
+  "storageCheckerTestsPassed": 3,
+  "financialUpgradeRegressionsPassed": 9,
+  "upgradeableFinancialRoles": [
+    "revenue",
+    "aerarium",
+    "registry"
+  ],
+  "fixedInstanceCode": [
+    "JuvantiaAsset",
+    "Consortium",
+    "Syndicate"
+  ],
+  "financialRuleStatus": {
+    "chainId": 10200,
+    "checkedAtBlock": 23689200,
+    "registry": "0x867c0a7d7b1e1857def39ecd3ab6bdcd1d118079",
+    "publishedRules": 0,
+    "financialRulesPublished": false
+  },
   "financialRulesPublished": false,
   "paidLifecycleAcceptanceCompleted": false,
-  "zeroDevConnectivityRetested": false
+  "zeroDevConnectivityRetested": false,
+  "economicDataMigrated": false
 }

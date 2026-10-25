@@ -1,0 +1,141 @@
+{
+  "chainId": 10200,
+  "explorer": "https://gnosis-chiado.blockscout.com",
+  "method": "sourcify",
+  "verifiedAt": "2026-10-25T14:02:25.349709+00:00",
+  "sourceRevision": "7b9da11",
+  "contracts": {
+    "aerarium": {
+      "address": "0x3c2e7fa73007792841becb738f07c3ada21368fb",
+      "isVerified": true,
+      "name": "JuvantiaAerarium",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x3c2e7fa73007792841becb738f07c3ada21368fb?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "revenue": {
+      "address": "0x219cbf58baa72423f101c7b96f874bfbd098890b",
+      "isVerified": true,
+      "name": "JuvantiaRevenueDistributor",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x219cbf58baa72423f101c7b96f874bfbd098890b?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "registry": {
+      "address": "0xb7ff921e0800d462afc9dc4540ab9b5770475499",
+      "isVerified": true,
+      "name": "JuvantiaPaymentRegistry",
+      "url": "https://gnosis-chiado.blockscout.com/address/0xb7ff921e0800d462afc9dc4540ab9b5770475499?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "assetImplementation": {
+      "address": "0x400a240d2598bfbbc7eba28736e2922512bd4b5f",
+      "isVerified": true,
+      "name": "JuvantiaAsset",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x400a240d2598bfbbc7eba28736e2922512bd4b5f?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "fabricaImplementation": {
+      "address": "0x712f3ca3524d122664235d18d907fcd7c38611e9",
+      "isVerified": true,
+      "name": "JuvantiaAssetFabrica",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x712f3ca3524d122664235d18d907fcd7c38611e9?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "fabrica": {
+      "address": "0x3e1b476da33a7698311346fadf22536d8a77776d",
+      "isVerified": true,
+      "name": "ERC1967Proxy",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x3e1b476da33a7698311346fadf22536d8a77776d?tab=contract",
+      "proxyType": "eip1967",
+      "implementations": [
+        {
+          "address_hash": "0x712F3Ca3524d122664235d18d907Fcd7c38611e9",
+          "name": "JuvantiaAssetFabrica"
+        }
+      ]
+    },
+    "tradeImplementation": {
+      "address": "0x16919989fd17674e157ac6c68e1d57547ec7e051",
+      "isVerified": true,
+      "name": "JuvantiaTradeHub",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x16919989fd17674e157ac6c68e1d57547ec7e051?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "trade": {
+      "address": "0x1c90a4aa8ab49214493770a36f72706a1cd1d5c4",
+      "isVerified": true,
+      "name": "ERC1967Proxy",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x1c90a4aa8ab49214493770a36f72706a1cd1d5c4?tab=contract",
+      "proxyType": "eip1967",
+      "implementations": [
+        {
+          "address_hash": "0x16919989Fd17674E157ac6C68e1D57547ec7E051",
+          "name": "JuvantiaTradeHub"
+        }
+      ]
+    },
+    "consortiumImplementation": {
+      "address": "0x7f1f200786b41faeaaa8bacf08eafac4abcfa4df",
+      "isVerified": true,
+      "name": "Consortium",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x7f1f200786b41faeaaa8bacf08eafac4abcfa4df?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "consortiumFactoryImplementation": {
+      "address": "0x2a4a542e33d030262ff21a4313d70d64a0d1c54a",
+      "isVerified": true,
+      "name": "ConsortiumFactory",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x2a4a542e33d030262ff21a4313d70d64a0d1c54a?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "consortiumFactory": {
+      "address": "0x70d73f1d9cb89056bf1720ec37d0d1fbe1194fc6",
+      "isVerified": true,
+      "name": "ERC1967Proxy",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x70d73f1d9cb89056bf1720ec37d0d1fbe1194fc6?tab=contract",
+      "proxyType": "eip1967",
+      "implementations": [
+        {
+          "address_hash": "0x2a4a542e33d030262fF21a4313D70d64A0d1c54a",
+          "name": "ConsortiumFactory"
+        }
+      ]
+    },
+    "syndicateImplementation": {
+      "address": "0x9c0611cadb72c9c3cbf1bfbb79d6f57e24615c30",
+      "isVerified": true,
+      "name": "Syndicate",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x9c0611cadb72c9c3cbf1bfbb79d6f57e24615c30?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "syndicateFactoryImplementation": {
+      "address": "0x6f892ca88f1679702926cbd5c05f9767cf4bb265",
+      "isVerified": true,
+      "name": "SyndicateFactory",
+      "url": "https://gnosis-chiado.blockscout.com/address/0x6f892ca88f1679702926cbd5c05f9767cf4bb265?tab=contract",
+      "proxyType": null,
+      "implementations": []
+    },
+    "syndicateFactory": {
+      "address": "0xb35ee137adb60de751ee7508853859671cff39ae",
+      "isVerified": true,
+      "name": "ERC1967Proxy",
+      "url": "https://gnosis-chiado.blockscout.com/address/0xb35ee137adb60de751ee7508853859671cff39ae?tab=contract",
+      "proxyType": "eip1967",
+      "implementations": [
+        {
+          "address_hash": "0x6F892CA88f1679702926cBD5c05F9767cF4Bb265",
+          "name": "SyndicateFactory"
+        }
+      ]
+    }
+  }
+}

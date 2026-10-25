@@ -1,5 +1,10 @@
 # Direct invoices — 2026-10-25
 
+Historical review of the ordinary fourteen-component deployment. The 2026-10-26 release adds
+UUPS financial proxies while retaining this invoice protocol; see [UPGRADES.md](../UPGRADES.md)
+and [current deployment evidence](../DEPLOYMENTS.md). Its original ABI, receipts and runtime
+evidence are preserved under `deployments/archive/chiado-10200-23685490/`.
+
 The owner requested removal of JuvantiaServicePayments. Service fulfilment remains off-chain;
 the authenticated payment evidence is the Distributor's complete Settlement inside the exact
 successful Kernel UserOperation, as required by the Universal Payment Protocol in Notion.
@@ -51,6 +56,6 @@ configuration, successful startup and zero restarts are checked. API read/authen
 returned 200/401. Core's typed-data digest matches the deployed Solidity domain version 2;
 all sixty used ABI entries match. No diagnostic invoice payment was broadcast.
 
-Canonical receipts, source checks and public runtime evidence are linked in
-[DEPLOYMENTS.md](../DEPLOYMENTS.md) and
-[integration-verification.json](../deployments/chiado-10200/integration-verification.json).
+Original receipts, source checks and public runtime evidence are linked in the
+[archived deployment](../deployments/archive/chiado-10200-23685490/deployment.json) and
+[archived integration verification](../deployments/archive/chiado-10200-23685490/integration-verification.json).

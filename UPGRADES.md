@@ -87,7 +87,7 @@ Syndicate remains 24,357. Preserve the size gate for every proposed implementati
 ## Initial transition from the earlier ordinary deployment
 
 The 2026-10-25 financial contracts were ordinary contracts and cannot be converted to proxies
-at their existing addresses. This source revision prepares seventeen components, including
+at their existing addresses. The replacement deploys seventeen components, including
 seven proxy/implementation pairs, and thirty deployment/configuration transactions. The three
 fixed templates are Asset, Consortium and Syndicate. Code for those instances is unchanged.
 
@@ -98,6 +98,13 @@ explicit migration design. The empty test stack can be replaced without economic
 Keep the previous address/ABI/receipt/explorer/runtime evidence in the archive. Update Core's
 persistent configuration only after receipt/runtime/binding verification of the new proxies.
 Reuse the same Core service identity and keep Tribunal/community creation disabled.
+
+This transition is now receipt-verified on Chiado from source `9ec8b30`: all thirty transactions
+succeeded, seventeen deployed runtimes match the build and seventy-eight binding/initialization
+checks pass at block 23689121. All seventeen explorer sources/names and seven implementation
+links are verified. Read-only checks confirmed the preceding stack had no assets, organizations,
+orders, held EURO, published rules or Core service-payment records. Its exact public evidence is
+preserved in `deployments/archive/chiado-10200-23685490/`. No economic state was migrated.
 
 Only [DEPLOYMENTS.md](DEPLOYMENTS.md) and its canonical receipt registry establish activation;
 implementation and local tests do not by themselves establish an on-chain transition.
