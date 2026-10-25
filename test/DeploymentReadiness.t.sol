@@ -10,7 +10,6 @@ import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol"
 import {JuvantiaAerarium} from "../src/JuvantiaAerarium.sol";
 import {JuvantiaAssetFabrica} from "../src/JuvantiaAssetFabrica.sol";
 import {JuvantiaTradeHub} from "../src/JuvantiaTradeHub.sol";
-import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
 import {ConsortiumFactory} from "../src/community/ConsortiumFactory.sol";
 import {SyndicateFactory} from "../src/community/SyndicateFactory.sol";
 
@@ -79,6 +78,8 @@ contract DeploymentReadinessTest is Test {
         assertEq(trade.owner(), OWNER);
         assertEq(cFactory.owner(), OWNER);
         assertEq(sFactory.owner(), OWNER);
+        assertEq(revenue.SIGNED_INVOICE_ROLE(), 2);
+        assertEq(revenue.sourceRoles(CORE_SIGNER), 0);
         assertTrue(registry.invoiceIssuers(CORE_SIGNER));
         assertFalse(registry.invoiceIssuers(OWNER));
         assertEq(cFactory.authorizer(), CORE_SIGNER);
@@ -98,8 +99,6 @@ contract DeploymentReadinessTest is Test {
         assertEq(fabrica.assetImplementation(), d.assetImplementation);
         assertEq(address(trade.currencyToken()), address(token));
         assertEq(address(trade.revenueDistributor()), d.revenue);
-        assertEq(address(JuvantiaServicePayments(d.services).revenueDistributor()), d.revenue);
-        assertEq(JuvantiaServicePayments(d.services).paymentToken(), address(token));
         assertEq(address(cFactory.revenueDistributor()), d.revenue);
         assertEq(address(cFactory.aerarium()), d.aerarium);
         assertEq(cFactory.consortiumImplementation(), d.consortiumImplementation);
@@ -113,7 +112,6 @@ contract DeploymentReadinessTest is Test {
         assertTrue(revenue.escrows(d.trade));
         assertEq(revenue.sourceRoles(d.aerarium), 16);
         assertEq(revenue.sourceRoles(d.trade), 1);
-        assertEq(revenue.sourceRoles(d.services), 2);
         assertEq(revenue.registrarRoles(d.syndicateFactory), 8);
         assertEq(_implementation(d.fabrica), d.fabricaImplementation);
         assertEq(_implementation(d.trade), d.tradeImplementation);

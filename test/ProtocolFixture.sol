@@ -9,7 +9,6 @@ import {JuvantiaAssetFabrica} from "../src/JuvantiaAssetFabrica.sol";
 import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol";
 import {JuvantiaPaymentRegistry} from "../src/JuvantiaPaymentRegistry.sol";
 import {JuvantiaAerarium} from "../src/JuvantiaAerarium.sol";
-import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
 
 contract TestEuroToken is ERC20 {
     constructor() ERC20("Test Euro", "EURO") {}
@@ -26,7 +25,6 @@ abstract contract ProtocolFixture is Test {
     JuvantiaRevenueDistributor internal revenue;
     JuvantiaAerarium internal aerarium;
     JuvantiaPaymentRegistry internal registry;
-    JuvantiaServicePayments internal services;
     address internal alice = address(0xA11CE);
     address internal bob = address(0xB0B);
     address internal carol = address(0xCA401);
@@ -64,8 +62,6 @@ abstract contract ProtocolFixture is Test {
         );
         revenue.setRegistrar(address(fabrica), true);
         asset = JuvantiaAsset(fabrica.createAsset(keccak256("asset-1"), "Robulus", alice));
-        services = new JuvantiaServicePayments(address(revenue));
-        revenue.setPaymentSource(address(services), 2);
         euroToken.mint(address(this), 1_000_000 ether);
         euroToken.approve(address(revenue), type(uint256).max);
         euroToken.mint(alice, 1_000 ether);

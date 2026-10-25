@@ -52,7 +52,7 @@ def main():
     chain = int(rpc_batch([("eth_chainId", [])])[0], 16)
     require(chain == int(settings["BLOCKCHAIN_CHAIN_ID"]) == broadcast["chain"], "Chain mismatch")
     txs = broadcast["transactions"]
-    require(len(txs) == 29 and not broadcast["pending"], "Full broadcast is incomplete")
+    require(len(txs) == 27 and not broadcast["pending"], "Full broadcast is incomplete")
     require(all(tx.get("hash") for tx in txs), "Missing transaction hash")
     require(len({tx["hash"] for tx in txs}) == len(txs), "Duplicate transaction hash")
     receipts = rpc_batch([("eth_getTransactionReceipt", [tx["hash"]]) for tx in txs])
@@ -80,7 +80,6 @@ def main():
         ("fabrica", "JuvantiaAssetFabrica", True),
         ("tradeImplementation", "JuvantiaTradeHub", False),
         ("trade", "JuvantiaTradeHub", True),
-        ("services", "JuvantiaServicePayments", False),
         ("consortiumImplementation", "Consortium", False),
         ("consortiumFactoryImplementation", "ConsortiumFactory", False),
         ("consortiumFactory", "ConsortiumFactory", True),
@@ -108,7 +107,7 @@ def main():
             "deploymentBlock": int(receipt["blockNumber"], 16),
             "abi": "abi/" + name + ".json",
         }
-    require(len({c["address"] for c in contracts.values()}) == 15, "Duplicate deployment address")
+    require(len({c["address"] for c in contracts.values()}) == len(inventory), "Duplicate deployment address")
     codes = rpc_batch([("eth_getCode", [contracts[role]["address"], block_tag]) for role, _, _ in inventory])
     for (role, name, proxy), code in zip(inventory, codes):
         deployed = artifact("ERC1967Proxy" if proxy else name)["deployedBytecode"]
@@ -148,10 +147,10 @@ def main():
     check("registry", "invoiceIssuers(address)", 0, owner)
     for role, signature in [
         ("revenue", "revenueToken()"), ("aerarium", "revenueToken()"), ("trade", "currencyToken()"),
-        ("services", "paymentToken()"), ("syndicateFactory", "paymentToken()"),
+        ("syndicateFactory", "paymentToken()"),
     ]:
         check(role, signature, token)
-    for role in ["aerarium", "fabrica", "trade", "services", "consortiumFactory", "syndicateFactory"]:
+    for role in ["aerarium", "fabrica", "trade", "consortiumFactory", "syndicateFactory"]:
         check(role, "revenueDistributor()", address("revenue"))
     for role in ["revenue", "aerarium"]:
         check(role, "paymentRegistry()", address("registry"))
@@ -164,8 +163,12 @@ def main():
     for role in ["fabrica", "consortiumFactory"]:
         check("revenue", "registrars(address)", 1, address(role))
     check("revenue", "escrows(address)", 1, address("trade"))
-    for role, bits in [("aerarium", 16), ("trade", 1), ("services", 2)]:
+    for role, bits in [("aerarium", 16), ("trade", 1)]:
         check("revenue", "sourceRoles(address)", bits, address(role))
+    check("revenue", "SIGNED_INVOICE_ROLE()", 2)
+    check("revenue", "sourceRoles(address)", 0, core)
+    check("revenue", "sourceRoles(address)", 0, owner)
+    check("revenue", "INVOICE_TYPEHASH()", "0x0d1c4bdc3257b17f4d966adfd57c5e8e7dce2def63dbb2573e3f94ac65875233")
     check("revenue", "registrarRoles(address)", 8, address("syndicateFactory"))
     for role in ["fabrica", "trade", "consortiumFactory", "syndicateFactory"]:
         checks.append(("eth_getStorageAt", [address(role), IMPLEMENTATION_SLOT, block_tag]))

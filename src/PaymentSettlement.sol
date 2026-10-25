@@ -29,11 +29,12 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
     struct Invoice {
         Payment payment;
         address payer;
-        address source;
     }
 
+    // Policy bit for authenticated Core invoices, never granted to a caller address.
+    uint256 public constant SIGNED_INVOICE_ROLE = 2;
     bytes32 public constant INVOICE_TYPEHASH = keccak256(
-        "Invoice(bytes32 paymentId,bytes32 categoryId,uint256 revision,uint8 kind,address destination,address asset,uint256 gross,uint256 issuedAt,uint256 expiresAt,address payer,address source)"
+        "Invoice(bytes32 paymentId,bytes32 categoryId,uint256 revision,uint8 kind,address destination,address asset,uint256 gross,uint256 issuedAt,uint256 expiresAt,address payer)"
     );
     IERC20 public immutable revenueToken;
     JuvantiaAerarium public aerarium;
@@ -73,7 +74,7 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
 
     constructor(address token, address admin, address treasury)
         Ownable(admin)
-        EIP712("JuvantiaRevenueDistributor", "1")
+        EIP712("JuvantiaRevenueDistributor", "2")
     {
         require(token.code.length > 0, "Invalid token");
         revenueToken = IERC20(token);
@@ -112,7 +113,7 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
     }
 
     function _setSource(address source, uint256 roles) internal {
-        require(source.code.length > 0 && roles <= 31, "Invalid source");
+        require(source.code.length > 0 && roles & ~uint256(29) == 0, "Invalid source");
         sourceRoles[source] = roles;
         emit PaymentSourceSet(source, roles);
     }
@@ -132,20 +133,9 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
     }
 
     function payInvoice(Invoice calldata invoice, bytes calldata signature) external nonReentrant returns (uint256) {
-        require(invoice.payer == msg.sender && invoice.source == address(0), "Invoice payer mismatch");
+        require(invoice.payer == msg.sender, "Invoice payer mismatch");
         _verifyInvoice(invoice, signature);
-        return _settle(invoice.payment, msg.sender);
-    }
-
-    function payInvoiceFor(Invoice calldata invoice, bytes calldata signature, address payer)
-        external
-        nonReentrant
-        returns (uint256)
-    {
-        require(sourceRoles[msg.sender] != 0, "Not payment source");
-        require(invoice.payer == payer && invoice.source == msg.sender, "Invoice payer mismatch");
-        _verifyInvoice(invoice, signature);
-        return _settle(invoice.payment, payer);
+        return _settle(invoice.payment, msg.sender, SIGNED_INVOICE_ROLE);
     }
 
     function hashInvoice(Invoice calldata invoice) public view returns (bytes32) {
@@ -163,8 +153,7 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
                     p.gross,
                     p.issuedAt,
                     p.expiresAt,
-                    invoice.payer,
-                    invoice.source
+                    invoice.payer
                 )
             )
         );
@@ -178,6 +167,10 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
     }
 
     function _settle(Payment memory p, address payer) internal returns (uint256 net) {
+        return _settle(p, payer, sourceRoles[msg.sender]);
+    }
+
+    function _settle(Payment memory p, address payer, uint256 authorizedRoles) private returns (uint256 net) {
         require(address(paymentRegistry) != address(0), "Registry unavailable");
         require(payer != address(0) && p.paymentId != bytes32(0) && p.gross > 0, "Invalid payment");
         require(!paid[payer][p.paymentId], "Already paid");
@@ -185,10 +178,10 @@ abstract contract PaymentSettlement is Ownable, ReentrancyGuard, EIP712 {
         JuvantiaPaymentRegistry.Rule memory rule = p.revision == 0
             ? paymentRegistry.currentRule(p.categoryId)
             : paymentRegistry.quotedRule(p.categoryId, p.revision, p.issuedAt, p.expiresAt);
-        require(rule.publicAccess || rule.sourceRoles & sourceRoles[msg.sender] != 0, "Restricted category");
+        require(rule.publicAccess || rule.sourceRoles & authorizedRoles != 0, "Restricted category");
         require(rule.destinations & (1 << p.kind) != 0, "Invalid destination kind");
         // Raw calls cannot choose a historical rate, even for public commercial categories.
-        require(p.revision == 0 || sourceRoles[msg.sender] != 0 || p.issuedAt != 0, "Invalid revision");
+        require(p.revision == 0 || authorizedRoles != 0 || p.issuedAt != 0, "Invalid revision");
         if (p.revision == 0) p.revision = paymentRegistry.currentRevision(p.categoryId);
         (uint256 tax, uint256 remainder_) = paymentRegistry.calculate(rule, p.gross);
         net = remainder_;

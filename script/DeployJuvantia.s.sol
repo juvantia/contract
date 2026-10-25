@@ -14,7 +14,6 @@ import {JuvantiaAssetFabrica} from "../src/JuvantiaAssetFabrica.sol";
 import {JuvantiaRevenueDistributor} from "../src/JuvantiaRevenueDistributor.sol";
 import {JuvantiaTradeHub} from "../src/JuvantiaTradeHub.sol";
 import {JuvantiaAerarium} from "../src/JuvantiaAerarium.sol";
-import {JuvantiaServicePayments} from "../src/JuvantiaServicePayments.sol";
 
 /// @dev Shared release checks run before recording any broadcast transaction.
 abstract contract JuvantiaDeploymentPreflight is Script {
@@ -84,7 +83,6 @@ contract DeployJuvantia is JuvantiaDeploymentPreflight {
         address fabrica;
         address tradeImplementation;
         address trade;
-        address services;
         address consortiumImplementation;
         address consortiumFactoryImplementation;
         address consortiumFactory;
@@ -125,8 +123,6 @@ contract DeployJuvantia is JuvantiaDeploymentPreflight {
         );
         revenue.setEscrow(deployed.trade, true);
         revenue.setPaymentSource(deployed.trade, 1);
-        deployed.services = address(new JuvantiaServicePayments(deployed.revenue));
-        revenue.setPaymentSource(deployed.services, 2);
 
         _deployCommunities(config, deployed);
         revenue.setTribunal(config.tribunal);
@@ -177,7 +173,6 @@ contract DeployJuvantia is JuvantiaDeploymentPreflight {
         console.log("JuvantiaAssetFabrica", deployed.fabrica);
         console.log("JuvantiaTradeHub implementation", deployed.tradeImplementation);
         console.log("JuvantiaTradeHub", deployed.trade);
-        console.log("JuvantiaServicePayments", deployed.services);
         console.log("Consortium implementation", deployed.consortiumImplementation);
         console.log("ConsortiumFactory implementation", deployed.consortiumFactoryImplementation);
         console.log("ConsortiumFactory", deployed.consortiumFactory);

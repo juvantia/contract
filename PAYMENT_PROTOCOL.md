@@ -20,7 +20,7 @@ contracts contain no catalog of category names. Core takes category/price from t
 service/offer. Civitas tariffs are separate seller records in Admin, not tax Registry data.
 See [current backend behavior](../core/docs/PAYMENT_IMPLEMENTATION.md).
 
-No new deployment has been receipt-verified. The reduced Rule tuple and Settlement event require matching ABIs and a fresh configured-stack deployment; no upgrade or on-chain broadcast is performed by this change.
+The direct-invoice revision requires a fresh configured stack: Distributor is non-upgradeable and its dependencies bind its address. See DEPLOYMENTS.md for receipt-verified activation; source checks alone do not establish deployment.
 
 ## Settlement and custody
 
@@ -61,9 +61,10 @@ This example spends the caller's own funds. If a merchant contract collects cust
 then calls pay, the merchant contract is the debited payer in Settlement.
 This must not be presented as a direct debit of the customer's account.
 
-payFor and payInvoiceFor are available only to registered sources, which must authenticate their
-actual payer. Current source roles are TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8
-and Aerarium=16. Factories register permitted instance sources/asset pools.
+payFor is available only to registered sources, which must authenticate their actual payer.
+Registered source roles are TradeHub=1, Consortium=4, Syndicate=8 and Aerarium=16.
+Bit 2 (SIGNED_INVOICE_ROLE) authorizes Core-signed invoices only: it cannot be granted to any
+caller, including a contract or factory registrar. The delegated mask is therefore 29. Factories register permitted instance sources/asset pools.
 Registration and source masks control debit authority, not the economic truth of a seller's category.
 Do not remove payer authentication when simplifying category semantics.
 
@@ -75,9 +76,9 @@ Trade buyers authorize Distributor directly; TradeHub holds shares but no withdr
 
 ## Invoices and payment identity
 
-The EIP-712 domain is JuvantiaRevenueDistributor, version 1, selected chain and Distributor address.
+The EIP-712 domain is JuvantiaRevenueDistributor, version 2, selected chain and Distributor address.
 Invoice fields are paymentId, categoryId, revision, kind, destination, asset, gross, issuedAt,
-expiresAt, payer and source. paymentId identifies the payment; destination separately binds
+expiresAt and payer. paymentId identifies the payment; destination separately binds
 the beneficiary. The address cannot be inferred from the ID.
 
 The single Core service key signs invoices and factory creation vouchers off chain.
@@ -86,9 +87,11 @@ Registry issuer and both factory authorizers use its same public address; see
 Protecting category/revision from tampering is not a classification approval by Core.
 Only Registry-authorized invoice issuers are accepted.
 
-payInvoice authenticates msg.sender as payer and requires source zero.
-System service invoices use source ServicePayments; its pay method authenticates msg.sender
-as payer and forwards through payInvoiceFor. It holds no funds; approval belongs to Distributor.
+payInvoice(invoice,signature) authenticates msg.sender as the signed payer, verifies the
+authorized Core issuer and applies SIGNED_INVOICE_ROLE to this settlement alone. The payer
+approves exact gross to Distributor and calls it directly, including from a Kernel smart account.
+No adapter, payInvoiceFor entry point or signed source field remains. Settlement.source is
+the actual payer/caller; unsigned public and delegated paths cannot acquire invoice authorization.
 
 A valid issued invoice retains its historical revision until expiry, provided issuedAt falls
 within that revision's publication window. Current maximum TTL is seven days.
@@ -139,7 +142,7 @@ Settlement emits paymentId, debited payer, beneficiary, source, category/revisio
 and actual gross/tax/net. Gross equals tax plus net.
 
 Core service confirmation verifies the exact successful ERC-4337 UserOperation/canonical receipt,
-atomic Kernel calldata, and matching ServicePaid/Settlement within its log interval.
+atomic Kernel calldata, and one exact full Distributor Settlement within its log interval.
 A bare transfer, supplied hash or paid flag is insufficient. Service fulfilment stays in its domain.
 Confirmed receipts provide audit; no permanent universal indexer is implied.
 

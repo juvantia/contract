@@ -47,7 +47,7 @@ contract RegistryQuoteBoundaryTest is ProtocolFixture {
         _publish("SERVICE_ENTITLEMENT", false, 3, 2, 2000);
         vm.startPrank(alice);
         euroToken.approve(address(revenue), 100 ether);
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         vm.stopPrank();
         assertEq(revenue.accountRevenue(carol), 100 ether);
         assertEq(aerarium.totalCollected(), 0);
@@ -62,10 +62,9 @@ contract RegistryQuoteBoundaryTest is ProtocolFixture {
         vm.startPrank(alice);
         euroToken.approve(address(revenue), 100 ether);
         vm.expectRevert("Stale quote");
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         vm.stopPrank();
         assertFalse(revenue.paid(alice, quote.payment.paymentId));
-        assertFalse(services.paid(alice, quote.payment.paymentId));
     }
 
     function testSameBlockBoundaryDoesNotExtendExpiryOrBypassIssuerAuthorization() public {
@@ -76,20 +75,19 @@ contract RegistryQuoteBoundaryTest is ProtocolFixture {
         vm.startPrank(alice);
         euroToken.approve(address(revenue), 100 ether);
         vm.expectRevert("Invalid invoice signature");
-        services.pay(quote, unauthorizedSignature);
+        revenue.payInvoice(quote, unauthorizedSignature);
         vm.stopPrank();
         vm.warp(quote.payment.expiresAt + 1);
         vm.prank(alice);
         vm.expectRevert("Quote expired");
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         assertFalse(revenue.paid(alice, quote.payment.paymentId));
     }
 
     function _invoice(bytes32 id, uint256 issuedAt) private view returns (PaymentSettlement.Invoice memory) {
         return PaymentSettlement.Invoice(
             PaymentSettlement.Payment(id, SERVICE, 1, 0, carol, address(0), 100 ether, issuedAt, issuedAt + 1 hours),
-            alice,
-            address(services)
+            alice
         );
     }
 

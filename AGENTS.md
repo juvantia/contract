@@ -44,7 +44,6 @@ Clone/proxy instance state is initialized atomically through guarded `initialize
 | **`JuvantiaRevenueDistributor.sol`** | Onchain accrual vault | Transfer-aware per-asset revenue with fractional remainders, attributed marketplace custody, seller-specific trade proceeds, unified claims, atomic tax/net revenue routing (`processPayment`), and Multi-Model Tribunal encumbrance / judicial revenue seizure (`setEncumbrance`, `judicialClaim`). |
 | **`JuvantiaAerarium.sol`** | Central budget | Immediate tax custody, registry-delegated tax reads, and owner-authorized spending through Distributor. |
 | **`JuvantiaPaymentRegistry.sol`** | Non-upgradeable rule registry | Owner-published category revisions, taxes, permitted destinations/sources, invoice issuer grants; no seller prices. |
-| **`JuvantiaServicePayments.sol`** | Receipt-oriented payment gateway | Exact request/payer/recipient/amount events for backend entitlement verification. |
 | **`community/ConsortiumTreasury.sol`** | Abstract clone-compatible foundation | Operating custody and governed allocation of owners' revenue earnings into RevenueDistributor; read-only views of its distributed reserve. |
 | **`community/Consortium.sol` / `Syndicate.sol`** | Cloneable organizations | Authorized operating settlement, Consortium owners' allocation, Syndicate quotas/refunds, governance and Tribunal enforcement. |
 | **`community/ConsortiumFactory.sol` / `SyndicateFactory.sol`** | UUPS factories / EIP-1167 clones | Community creation voucher authorization, instance initialization, asset/source registration and receipt events. |
@@ -76,8 +75,8 @@ All official non-P2P payments enter RevenueDistributor first. PaymentRegistry is
 only its owner publishes versioned rules. Tax immediately enters Aerarium; addressed net
 accrues centrally. Asset net retains the transfer-aware O(1) index, fractional remainders,
 attributed escrow and Consortium treasury exclusion. Consortium allocation has its own tax category;
-governance approves gross and the owners' pool contains net. ServicePayments validates signed invoices
-as a receipt adapter and holds no funds. TradeHub buyers approve/pay Distributor directly. Claims
+governance approves gross and the owners' pool contains net. Core invoices settle directly through
+Distributor.payInvoice; the issuer signature and actual payer are checked there. TradeHub buyers approve/pay Distributor directly. Claims
 include account receipts, pooled owner earnings and trade proceeds through claimAll.
 
 See [PAYMENT_PROTOCOL.md](PAYMENT_PROTOCOL.md) for current interfaces and historical revisions.
@@ -104,8 +103,9 @@ No automatic historical balance migration.
   They need a published public category, unique ID and the configured token/decimals.
   Account recipients need no registration; custom owner pools require compatible registered assets.
 - Only configured sources can use delegated payer debits/private categories. Every such source
-  must authenticate its real payer. Source roles: TradeHub=1, ServicePayments=2,
-  Consortium=4, Syndicate=8, Aerarium=16.
+  must authenticate its real payer. Registered source roles: TradeHub=1, Consortium=4,
+  Syndicate=8, Aerarium=16. Bit 2 is virtual signed-invoice authorization, never an address grant.
+  Invoices use EIP-712 version 2, have no source field, and emit one full Settlement from Distributor.
 - One payment has one principal net recipient/pool and budget tax. No additional deduction
   recipient or arbitrary sale split is supported.
 - Existing refundable Syndicate quotas/refunds and judicial principal routes require private

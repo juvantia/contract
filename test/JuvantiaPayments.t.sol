@@ -27,8 +27,7 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
                 block.timestamp,
                 block.timestamp + 1 hours
             ),
-            alice,
-            address(services)
+            alice
         );
     }
 
@@ -42,12 +41,11 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         bytes memory signature = sign(quote);
         vm.startPrank(alice);
         euroToken.approve(address(revenue), quote.payment.gross);
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         vm.expectRevert("Already paid");
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         vm.stopPrank();
         assertEq(euroToken.balanceOf(carol), 0);
-        assertEq(euroToken.balanceOf(address(services)), 0);
         assertEq(revenue.accountRevenue(carol), quote.payment.gross);
         assertEq(revenue.claimAccountFor(carol), quote.payment.gross);
         assertEq(euroToken.balanceOf(carol), quote.payment.gross);
@@ -60,7 +58,7 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         _publish("SERVICE_ENTITLEMENT", false, 3, 2, 2000);
         vm.startPrank(alice);
         euroToken.approve(address(revenue), 100 ether);
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         vm.stopPrank();
         assertEq(revenue.accountRevenue(carol), 100 ether);
         _publish("OPERATING_RECEIPT", true, 1, 0, 2000);
@@ -74,18 +72,17 @@ contract JuvantiaPaymentsTest is ProtocolFixture {
         bytes memory signature = sign(quote);
         vm.prank(bob);
         vm.expectRevert("Invoice payer mismatch");
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         quote.payment.gross += 1;
         vm.prank(alice);
         vm.expectRevert("Invalid invoice signature");
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         quote.payment.gross -= 1;
         vm.warp(block.timestamp + 2 hours);
         vm.prank(alice);
         vm.expectRevert("Quote expired");
-        services.pay(quote, signature);
+        revenue.payInvoice(quote, signature);
         assertFalse(revenue.paid(alice, quote.payment.paymentId));
-        assertFalse(services.paid(alice, quote.payment.paymentId));
     }
 
     function testPublicMerchantCanFundOwnBalanceButCannotPullFromOthersOrUseInternalType() public {

@@ -13,7 +13,7 @@ contract JuvantiaPaymentRegistry is Ownable {
         bool publicAccess;
         uint8 destinations; // bits: account=1, asset pool=2, addressed trade=4
         uint16 taxBps;
-        uint256 sourceRoles; // TradeHub=1, ServicePayments=2, Consortium=4, Syndicate=8, Aerarium=16
+        uint256 sourceRoles; // TradeHub=1, signed invoice=2, Consortium=4, Syndicate=8, Aerarium=16
     }
 
     struct Version {
