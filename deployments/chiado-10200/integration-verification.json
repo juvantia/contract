@@ -1,0 +1,57 @@
+{
+  "chainId": 10200,
+  "sourceRevision": "7b9da11",
+  "verifiedAt": "2026-10-25T14:57:06.470433+00:00",
+  "compatibility": {
+    "checkedAbiEntries": 60,
+    "chainId": 10200,
+    "block": "23685622",
+    "coreAndSolidityDigestMatch": true,
+    "invoiceDomainVersion": "2",
+    "coreSignerAuthorized": true,
+    "signedInvoiceRole": "2",
+    "broadcastTransactions": 0
+  },
+  "core": {
+    "revision": "3e896142ad415d9d553167e6fdee65381bad877e",
+    "running": true,
+    "restartCount": 0,
+    "canonicalAddressesMatch": true,
+    "retiredAdapterAbsent": true,
+    "sameServiceKey": true,
+    "coreSignerMatch": true,
+    "serverEnvMode600": true,
+    "privateEnvAbsentFromImage": true,
+    "criticalBuildFilesMatch": true,
+    "invoiceDomainVersion": "2",
+    "deferredCommunityCreationDisabled": true,
+    "applicationStarted": true,
+    "errorLogLines": 0,
+    "tradeHttpStatus": 200,
+    "tradeOrderCount": 0,
+    "unauthenticatedProfileHttpStatus": 401,
+    "workflowUrl": "https://github.com/juvantia/core/actions/runs/40201397882",
+    "githubDeploymentEnvironmentUpdated": true,
+    "verifiedCompiledFileSha256": {
+      "modules/wallet/settlement.abi.js": "6aea6e4fbd756ada4073225c4127e1c96f4fc90c3fe2313b7fe25ad8fa0bae5b",
+      "modules/wallet/operations.service.js": "e4fb31bae838da8a7788a8975141c8f2ea3fdafc649e982c33e363078da9b0ca",
+      "modules/wallet/payment-quotes.service.js": "98ff4d112777932d79321f13ddea95e0ec77f8880a7b6c0877c21717afc016f1",
+      "modules/wallet/onchain.js": "21561c76d9529159fe032e90701a21ed0795c5888be3bba54bb048a5d9701279",
+      "common/blockchain/blockchain-config.service.js": "85b53fec2dc81f693e6e4434de5d3e6866864625872495ba054e3e54f61c38b1"
+    }
+  },
+  "native": {
+    "revision": "79a20926ef82173481f3bc1d4e2c380661e3699d",
+    "workflowUrl": "https://github.com/juvantia/app/actions/runs/40175501816",
+    "ciConclusion": "success",
+    "unitTestsPassed": 307,
+    "androidJavaScriptExport": true,
+    "iosJavaScriptExport": true,
+    "binaryOrOtaPublished": false
+  },
+  "coreTestsPassed": 200,
+  "contractTestsPassed": 177,
+  "financialRulesPublished": false,
+  "paidLifecycleAcceptanceCompleted": false,
+  "zeroDevConnectivityRetested": false
+}

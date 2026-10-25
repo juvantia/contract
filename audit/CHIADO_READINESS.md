@@ -1,4 +1,4 @@
-# Chiado deployment readiness
+# Historical Chiado deployment readiness — 2026-10-24
 
 Reviewed and corrected: 2026-10-24. Original audited source: `fd4528b`.
 Original findings and ten unsafe-behavior reproductions remain in
@@ -7,10 +7,12 @@ Original findings and ten unsafe-behavior reproductions remain in
 **Source corrections are implemented and locally verified. The owner authorized a direct
 Chiado testnet deployment. The deployer is restored, Core signing is configured locally,
 and the owner explicitly deferred Tribunal.**
-The full stack is now receipt-verified on Chiado: 29 successful transactions, 15 matching
+The original stack was receipt-verified on Chiado: 29 successful transactions, 15 matching
 deployed runtimes and 46 role/dependency/proxy checks, at block 23669346. Canonical addresses,
-receipts and all integration ABIs are in [the release export](../deployments/chiado-10200/deployment.json).
-Paid lifecycle acceptance and server/client activation remain separate work.
+receipts and all integration ABIs are in [the archived release export](../deployments/archive/chiado-10200-23669346/deployment.json).
+The later direct-invoice replacement is reviewed in [DIRECT_INVOICES.md](DIRECT_INVOICES.md)
+and recorded in [the current release](../DEPLOYMENTS.md). The findings and test/size evidence
+below describe the original reviewed source; paid lifecycle acceptance remains separate work.
 
 ## Network and signing configuration check — 2026-10-24
 

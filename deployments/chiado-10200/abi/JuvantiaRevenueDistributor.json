@@ -48,6 +48,19 @@
   },
   {
     "type": "function",
+    "name": "SIGNED_INVOICE_ROLE",
+    "inputs": [],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
     "name": "accountRevenue",
     "inputs": [
       {
@@ -616,11 +629,6 @@
             "name": "payer",
             "type": "address",
             "internalType": "address"
-          },
-          {
-            "name": "source",
-            "type": "address",
-            "internalType": "address"
           }
         ]
       }
@@ -1042,11 +1050,6 @@
             "name": "payer",
             "type": "address",
             "internalType": "address"
-          },
-          {
-            "name": "source",
-            "type": "address",
-            "internalType": "address"
           }
         ]
       },
@@ -1054,99 +1057,6 @@
         "name": "signature",
         "type": "bytes",
         "internalType": "bytes"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "payInvoiceFor",
-    "inputs": [
-      {
-        "name": "invoice",
-        "type": "tuple",
-        "internalType": "struct PaymentSettlement.Invoice",
-        "components": [
-          {
-            "name": "payment",
-            "type": "tuple",
-            "internalType": "struct PaymentSettlement.Payment",
-            "components": [
-              {
-                "name": "paymentId",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "categoryId",
-                "type": "bytes32",
-                "internalType": "bytes32"
-              },
-              {
-                "name": "revision",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "kind",
-                "type": "uint8",
-                "internalType": "uint8"
-              },
-              {
-                "name": "destination",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
-                "name": "asset",
-                "type": "address",
-                "internalType": "address"
-              },
-              {
-                "name": "gross",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "issuedAt",
-                "type": "uint256",
-                "internalType": "uint256"
-              },
-              {
-                "name": "expiresAt",
-                "type": "uint256",
-                "internalType": "uint256"
-              }
-            ]
-          },
-          {
-            "name": "payer",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
-            "name": "source",
-            "type": "address",
-            "internalType": "address"
-          }
-        ]
-      },
-      {
-        "name": "signature",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
-        "name": "payer",
-        "type": "address",
-        "internalType": "address"
       }
     ],
     "outputs": [

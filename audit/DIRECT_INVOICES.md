@@ -37,3 +37,20 @@ The app API envelope is unchanged. Its invoice validator and selector target dir
 old adapter calldata fails closed. Native source/JavaScript checks do not publish a binary or OTA.
 Deferred organization workflows remain disabled. Financial categories and real paid/device
 acceptance remain separate activation work.
+
+## Activation evidence
+
+The replacement is deployed from `7b9da11`: 27 successful receipts, 14 matching runtimes and
+47 checked bindings. All fourteen explorer sources/names and four proxy implementation links
+are confirmed. The previous thirteen public manifest/ABI/explorer files are archived byte for
+byte under `deployments/archive/chiado-10200-23669346/`.
+
+Core `3e89614` was automatically deployed after updating local/server/GitHub configuration.
+Runtime file fingerprints, addresses, signer, absence of the adapter setting, mode 600 private
+configuration, successful startup and zero restarts are checked. API read/authentication checks
+returned 200/401. Core's typed-data digest matches the deployed Solidity domain version 2;
+all sixty used ABI entries match. No diagnostic invoice payment was broadcast.
+
+Canonical receipts, source checks and public runtime evidence are linked in
+[DEPLOYMENTS.md](../DEPLOYMENTS.md) and
+[integration-verification.json](../deployments/chiado-10200/integration-verification.json).

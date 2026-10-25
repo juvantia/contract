@@ -5,6 +5,7 @@ import argparse
 import copy
 from datetime import datetime, timezone
 import hashlib
+from http.client import RemoteDisconnected
 import json
 import os
 from pathlib import Path
@@ -32,7 +33,7 @@ def request_json(url, data=None, content_type=None):
         except urllib.error.HTTPError as error:
             if error.code not in [403, 429, 500, 502, 503, 504] or attempt == 3:
                 raise
-        except (urllib.error.URLError, TimeoutError):
+        except (urllib.error.URLError, TimeoutError, RemoteDisconnected, ConnectionResetError):
             if attempt == 3:
                 raise
         time.sleep(3 * (attempt + 1))

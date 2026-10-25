@@ -10,7 +10,8 @@
 The `contract` repository contains the smart contracts governing Real-World Asset (RWA) tokenization, fractional share trading, and revenue distribution across the Juvantia ecosystem.
 
 The configurable ZeroDev migration remains incomplete across services. The fresh contract stack
-was deployed and receipt-verified on Chiado (chain ID 10200) on 2026-10-24. Its canonical
+was replaced by the direct-invoice stack and receipt-verified on Chiado (chain ID 10200)
+on 2026-10-25. Its canonical
 registry is `deployments/chiado-10200/deployment.json`; historical addresses are not defaults.
 The payment asset is configured through EURO_TOKEN_ADDRESS and EURO_TOKEN_DECIMALS; verify
 actual token decimals on chain. Do not query/store its symbol. All money uses integer base units.
@@ -187,20 +188,23 @@ The monetary authority and accounting boundaries are:
 
 ## 📍 Deployment Status
 
-The full configured Chiado contract stack is receipt-verified: 29 successful transactions,
-15 matching deployed runtimes, 46 binding checks and exported ABI/address/block records.
-See `DEPLOYMENTS.md` and `deployments/chiado-10200/deployment.json`. All 15 addresses also have
+The full configured Chiado contract stack is receipt-verified: 27 successful transactions,
+14 matching deployed runtimes, 47 binding checks and exported ABI/address/block records.
+See `DEPLOYMENTS.md` and `deployments/chiado-10200/deployment.json`. All 14 addresses also have
 public source/name verification through Blockscout's Sourcify path; see
 `deployments/chiado-10200/explorer-verification.json`. Release completion must record explorer
 source verification separately from receipt/runtime checks, including named implementation
 links for proxies. Use `script/verify_explorer.py` with the matching build and raw broadcast.
-Tribunal is explicitly disabled. Server/client activation, tax-category publication and paid lifecycle acceptance
-remain separate work. Never infer activation from compilation or historical addresses.
+Tribunal is explicitly disabled. Core runtime evidence belongs in `DEPLOYMENTS.md`;
+native publication, tax-category publication and paid lifecycle acceptance are separate work.
+Never infer activation from compilation or historical addresses. Earlier adapter deployment
+evidence remains in `deployments/archive/chiado-10200-23669346/`.
 
 Settlement source/tests are implemented; this does not establish complete Core readiness.
-Core still has incomplete consent verification, community deployment receipt/caller checks,
-historic/dummy configuration fallbacks and chain-cutover schema constraints. These are documented
-gaps, not fixed by this documentation update; see [readiness](../core/docs/DEPLOYMENT_READINESS.md).
+Core still has incomplete consent verification and community deployment receipt/caller checks;
+that creation flow remains disabled. Explicit chain/token/address and signing settings are
+required, and database chain constraints have been checked for 10200. See
+[readiness](../core/docs/DEPLOYMENT_READINESS.md) for deferred integration boundaries.
 Native binary/OTA publication is separate from server/contract activation.
 
 ---
