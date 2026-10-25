@@ -4,6 +4,7 @@
 import hashlib
 import json
 from pathlib import Path
+import shutil
 import sys
 import urllib.request
 
@@ -196,7 +197,29 @@ def main():
         } for receipt in receipts],
         "verification": {"successfulReceipts": len(receipts), "compiledRuntimes": len(codes), "bindings": len(checks)},
     }
+    previous_path = output / "deployment.json"
+    if previous_path.exists():
+        previous = json.loads(previous_path.read_text())
+        require(previous["chainId"] == chain, "Existing export belongs to another chain")
+        if previous["contracts"] != contracts:
+            archive = output.parent / "archive" / (output.name + "-" + str(previous["verifiedAtBlock"]))
+            files = [previous_path, *sorted((output / "abi").glob("*.json"))]
+            explorer = output / "explorer-verification.json"
+            if explorer.exists():
+                files.append(explorer)
+            for source in files:
+                target = archive / source.relative_to(output)
+                require(not target.exists() or target.read_bytes() == source.read_bytes(), "Conflicting archived evidence")
+                target.parent.mkdir(parents=True, exist_ok=True)
+                shutil.copyfile(source, target)
+            # Old explorer evidence must not be presented as verification of the new addresses.
+            explorer.unlink(missing_ok=True)
+
     (output / "abi").mkdir(parents=True, exist_ok=True)
+    abi_names = {name + ".json" for _, name, _ in inventory}
+    for obsolete in (output / "abi").glob("*.json"):
+        if obsolete.name not in abi_names:
+            obsolete.unlink()
     for name in {name for _, name, _ in inventory}:
         (output / "abi" / (name + ".json")).write_text(json.dumps(artifact(name)["abi"], indent=2) + "\n")
     (output / "deployment.json").write_text(json.dumps(manifest, indent=2) + "\n")
